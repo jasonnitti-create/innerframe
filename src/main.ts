@@ -2,6 +2,7 @@ import "./styles.css";
 import { Terminal } from "./terminal";
 import { FaceTracker, type EyeState } from "./face-tracker";
 import { AudioEngine } from "./audio-engine";
+import { Beeper } from "./beeper";
 import { renderReportCard, exportPNG, type SessionData } from "./report-card";
 
 interface Track {
@@ -67,6 +68,7 @@ async function main(): Promise<void> {
 
   const audio = new AudioEngine(`${import.meta.env.BASE_URL}${track.audioSrc.replace(/^\.\//, "")}`);
   const tracker = new FaceTracker(video);
+  const beeper = new Beeper();
   const serial = sessionSerial();
 
   let eyesOpenedCount = 0;
@@ -90,6 +92,7 @@ async function main(): Promise<void> {
   await term.type("I need your camera to know when your eyes are closed.");
   await term.type("The feed never leaves your browser — I'm only reading whether your eyes are open or shut, frame by frame, and then forgetting.", "line dim");
   await term.button("Allow camera");
+  beeper.unlock();
 
   term.setStatus("requesting camera…");
   let cameraGranted = false;
@@ -163,8 +166,8 @@ async function main(): Promise<void> {
   const closedThreshold = clamp(openBaseline + spread * 0.65, openThreshold + 0.12, 0.8);
   tracker.setThresholds(closedThreshold, openThreshold);
 
-  await term.type("Good. Now try six seconds — this time for real.");
-  const rehearsed = await rehearseClosedEyes(6000);
+  await term.type("Good. Now hold for six seconds.");
+  const rehearsed = await rehearseClosedEyes(6000, true);
   if (!rehearsed) {
     await term.type("We lost you partway through. No matter — you'll get another shot once the song starts.", "line dim");
   } else {
@@ -333,9 +336,10 @@ async function main(): Promise<void> {
     });
   }
 
-  async function rehearseClosedEyes(holdMs: number): Promise<boolean> {
+  async function rehearseClosedEyes(holdMs: number, withBeeps = false): Promise<boolean> {
     return new Promise((resolve) => {
       let closedSince: number | null = null;
+      let lastBeepSecond = 0;
       const timeoutAt = performance.now() + 20000;
 
       tracker.start(
@@ -347,9 +351,21 @@ async function main(): Promise<void> {
             return;
           }
           if (state.closed) {
-            if (closedSince === null) closedSince = now;
+            if (closedSince === null) {
+              closedSince = now;
+              lastBeepSecond = 0;
+            }
             const held = now - closedSince;
             term.setStatus(`holding… ${Math.min(holdMs, held).toFixed(0)}ms / ${holdMs}ms`);
+
+            if (withBeeps) {
+              const heldSeconds = Math.floor(held / 1000);
+              if (heldSeconds > lastBeepSecond) {
+                lastBeepSecond = heldSeconds;
+                void beeper.beep(420 + heldSeconds * 45, 90);
+              }
+            }
+
             if (held >= holdMs) {
               tracker.stop();
               resolve(true);
