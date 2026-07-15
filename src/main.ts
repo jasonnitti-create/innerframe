@@ -18,6 +18,10 @@ function sleep(ms: number): Promise<void> {
   return new Promise((r) => setTimeout(r, ms));
 }
 
+function clamp(value: number, min: number, max: number): number {
+  return Math.min(max, Math.max(min, value));
+}
+
 function sessionSerial(): string {
   const n = Math.floor(Math.random() * 9999) + 1;
   return `SESSION №${String(n).padStart(4, "0")}`;
@@ -128,16 +132,20 @@ async function main(): Promise<void> {
     return;
   }
 
-  const openBaseline = await tracker.sampleClosedness(1200);
+  await term.type("Good. Now look at the screen, eyes open, for a moment.");
+  const openBaseline = await tracker.sampleClosedness(1500);
 
   await term.type("Try closing your eyes for three seconds.");
   const closedBaseline = await tracker.sampleClosedness(3000, (f) =>
     term.setStatus(`calibrating… ${Math.round(f * 100)}%`),
   );
 
-  const spread = Math.max(closedBaseline - openBaseline, 0.15);
-  const closedThreshold = Math.min(0.85, Math.max(0.3, openBaseline + spread * 0.5));
-  const openThreshold = Math.max(0.05, closedThreshold - 0.14);
+  // Anchor both thresholds off the two measured baselines, not off each other —
+  // deriving "open" as an offset from "closed" let a high open-eye reading end up
+  // *above* that threshold, making the gate permanently unable to detect eyes opening.
+  const spread = Math.max(closedBaseline - openBaseline, 0.2);
+  const openThreshold = clamp(openBaseline + spread * 0.3, 0.1, 0.5);
+  const closedThreshold = clamp(openBaseline + spread * 0.65, openThreshold + 0.12, 0.8);
   tracker.setThresholds(closedThreshold, openThreshold);
 
   await term.type("Good. Now try six seconds — this time for real.");

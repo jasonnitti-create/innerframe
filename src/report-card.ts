@@ -77,8 +77,18 @@ export async function renderReportCard(
   }
 
   const tlX = 56;
-  const tlY = H - 110;
+  const tlY = H - 100;
   const tlW = W - 112;
+
+  if (!data.honorMode) {
+    const caption =
+      data.peeks.length === 0
+        ? "NO INTERRUPTIONS — FULLY IMAGINED"
+        : "WHERE THE SIGNAL DROPPED";
+    ctx.fillStyle = data.peeks.length === 0 ? data.accent : "#6b6b64";
+    ctx.font = `13px ${MONO}`;
+    ctx.fillText(caption, tlX, tlY - 40);
+  }
 
   ctx.strokeStyle = "#2a2a26";
   ctx.lineWidth = 2;
@@ -87,11 +97,35 @@ export async function renderReportCard(
   ctx.lineTo(tlX + tlW, tlY);
   ctx.stroke();
 
-  if (!data.honorMode) {
+  if (!data.honorMode && data.peeks.length > 0) {
+    const showLabels = data.peeks.length <= 5;
+    ctx.save();
+    ctx.shadowColor = data.accent;
+    ctx.shadowBlur = 10;
+    ctx.strokeStyle = data.accent;
     ctx.fillStyle = data.accent;
+    ctx.lineWidth = 1.5;
     for (const t of data.peeks) {
       const x = tlX + (t / Math.max(data.durationSec, 1)) * tlW;
-      ctx.fillRect(x - 1, tlY - 8, 2, 16);
+      ctx.beginPath();
+      ctx.moveTo(x, tlY);
+      ctx.lineTo(x, tlY - 20);
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.arc(x, tlY - 20, 3.5, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    ctx.restore();
+
+    if (showLabels) {
+      ctx.fillStyle = "#9a9a92";
+      ctx.font = `11px ${MONO}`;
+      for (const t of data.peeks) {
+        const x = tlX + (t / Math.max(data.durationSec, 1)) * tlW;
+        const label = fmt(t);
+        const lw = ctx.measureText(label).width;
+        ctx.fillText(label, clamp(x - lw / 2, tlX, tlX + tlW - lw), tlY - 30);
+      }
     }
   }
 
@@ -100,6 +134,10 @@ export async function renderReportCard(
   ctx.fillText("0:00", tlX, tlY + 24);
   const totalStr = fmt(data.durationSec);
   ctx.fillText(totalStr, tlX + tlW - ctx.measureText(totalStr).width, tlY + 24);
+}
+
+function clamp(value: number, min: number, max: number): number {
+  return Math.min(max, Math.max(min, value));
 }
 
 export function exportPNG(canvas: HTMLCanvasElement): Promise<Blob> {
