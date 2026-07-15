@@ -16,6 +16,7 @@ const FACE_LOST_GRACE_MS = 2500;
 export class FaceTracker {
   private landmarker: FaceLandmarker | null = null;
   private raf = 0;
+  private running = false;
   private lastVideoTime = -1;
 
   private closedThreshold = 0.55;
@@ -119,8 +120,11 @@ export class FaceTracker {
     this.lastFaceSeenAt = performance.now();
     this.stableClosed = false;
     this.candidate = null;
+    this.running = true;
 
     const loop = () => {
+      if (!this.running) return;
+
       const raw = this.detectOnce();
       const nowMs = performance.now();
       const faceDetected = raw !== null;
@@ -153,12 +157,23 @@ export class FaceTracker {
         }
       }
 
-      this.raf = requestAnimationFrame(loop);
+      if (this.running) {
+        this.raf = requestAnimationFrame(loop);
+      }
     };
     this.raf = requestAnimationFrame(loop);
   }
 
+  /**
+   * Stops the run loop. Effective even when called synchronously from inside
+   * the onState/onFaceLostTooLong callback — cancelAnimationFrame on the frame
+   * currently executing is a no-op, so without this flag the loop's own
+   * trailing requestAnimationFrame call would silently re-arm the next frame
+   * regardless, leaving a zombie loop running forever alongside whatever
+   * start() is called next.
+   */
   stop(): void {
+    this.running = false;
     cancelAnimationFrame(this.raf);
   }
 
