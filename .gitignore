@@ -1,0 +1,9 @@
+node_modules
+dist
+.DS_Store
+*.log
+*.tsbuildinfo
+
+# private reference material — not for the public repo
+/Source documents
+/Track Considerations
