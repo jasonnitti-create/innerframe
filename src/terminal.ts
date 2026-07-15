@@ -48,6 +48,11 @@ export class Terminal {
 
   clear(): void {
     this.log.innerHTML = "";
+    this.log.classList.remove("terminal-log--wide");
+  }
+
+  widen(): void {
+    this.log.classList.add("terminal-log--wide");
   }
 
   setStatus(text: string): void {

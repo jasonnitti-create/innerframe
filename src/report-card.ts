@@ -17,6 +17,9 @@ export interface SessionData {
 const MONO = "'IBM Plex Mono', monospace";
 const W = 1200;
 const H = 675;
+// A fixed alarm red, independent of the track's accent color — signals
+// "terminated" the same way across every track rather than competing with it.
+const EXIT_COLOR = "#ff4d4d";
 
 export async function renderReportCard(
   canvas: HTMLCanvasElement,
@@ -26,9 +29,11 @@ export async function renderReportCard(
   await document.fonts.load(`22px ${MONO}`);
   await document.fonts.load(`13px ${MONO}`);
 
-  canvas.width = W;
-  canvas.height = H;
+  const scale = Math.max(2, window.devicePixelRatio || 1);
+  canvas.width = W * scale;
+  canvas.height = H * scale;
   const ctx = canvas.getContext("2d")!;
+  ctx.scale(scale, scale);
 
   ctx.fillStyle = "#050505";
   ctx.fillRect(0, 0, W, H);
@@ -101,7 +106,12 @@ export async function renderReportCard(
         : data.peeks.length === 0
           ? "NO INTERRUPTIONS — FULLY IMAGINED"
           : "WHERE THE SIGNAL DROPPED";
-    ctx.fillStyle = data.mode !== "exited" && data.peeks.length === 0 ? data.accent : "#6b6b64";
+    ctx.fillStyle =
+      data.mode === "exited"
+        ? EXIT_COLOR
+        : data.peeks.length === 0
+          ? data.accent
+          : "#6b6b64";
     ctx.font = `13px ${MONO}`;
     ctx.fillText(caption, tlX, tlY - 40);
   }
@@ -115,14 +125,23 @@ export async function renderReportCard(
 
   if (data.mode === "exited" && data.exitedAtSec !== undefined) {
     const ex = tlX + (data.exitedAtSec / Math.max(data.durationSec, 1)) * tlW;
-    ctx.strokeStyle = "#6b6b64";
+    ctx.save();
+    ctx.shadowColor = EXIT_COLOR;
+    ctx.shadowBlur = 10;
+    ctx.strokeStyle = EXIT_COLOR;
     ctx.lineWidth = 2;
     ctx.setLineDash([2, 3]);
     ctx.beginPath();
     ctx.moveTo(ex, tlY - 20);
     ctx.lineTo(ex, tlY + 6);
     ctx.stroke();
-    ctx.setLineDash([]);
+    ctx.restore();
+
+    ctx.fillStyle = EXIT_COLOR;
+    ctx.font = `11px ${MONO}`;
+    const exLabel = fmt(data.exitedAtSec);
+    const exLw = ctx.measureText(exLabel).width;
+    ctx.fillText(exLabel, clamp(ex - exLw / 2, tlX, tlX + tlW - exLw), tlY - 26);
   }
 
   if (showTimeline && data.peeks.length > 0) {

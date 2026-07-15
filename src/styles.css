@@ -55,6 +55,11 @@ body {
   display: flex;
   flex-direction: column;
   gap: 0.65em;
+  transition: width 200ms ease;
+}
+
+.terminal-log--wide {
+  width: min(900px, 92vw);
 }
 
 .line {
@@ -221,7 +226,7 @@ body {
   flex-direction: column;
   align-items: center;
   gap: 20px;
-  width: min(640px, 100%);
+  width: min(880px, 100%);
 }
 
 .report canvas {

@@ -178,6 +178,7 @@ async function main(): Promise<void> {
   term.clear();
   term.setStatus("ready");
   await term.type("Are you ready to watch?");
+  await term.type("Headphones help. Not required.", "line dim");
   await term.button("YES");
 
   audio.unlock();
@@ -399,6 +400,7 @@ async function main(): Promise<void> {
 
   async function showReport(data: SessionData): Promise<void> {
     term.clear();
+    term.widen();
     const wrap = document.createElement("div");
     wrap.className = "report";
     const canvas = document.createElement("canvas");
