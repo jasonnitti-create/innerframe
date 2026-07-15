@@ -87,7 +87,7 @@ export async function renderReportCard(
     ctx.fillStyle = "#6b6b64";
     ctx.font = `13px ${MONO}`;
     ctx.fillText(label, 56, y);
-    ctx.fillStyle = "#e8e8e0";
+    ctx.fillStyle = label === "MODE" && data.mode === "exited" ? EXIT_COLOR : "#e8e8e0";
     ctx.font = `600 24px ${MONO}`;
     ctx.fillText(value, 56, y + 30);
     y += 70;
@@ -101,17 +101,10 @@ export async function renderReportCard(
 
   if (showTimeline) {
     const caption =
-      data.mode === "exited"
-        ? "YOU LEFT BEFORE IT ENDED"
-        : data.peeks.length === 0
-          ? "NO INTERRUPTIONS — FULLY IMAGINED"
-          : "WHERE THE SIGNAL DROPPED";
-    ctx.fillStyle =
-      data.mode === "exited"
-        ? EXIT_COLOR
-        : data.peeks.length === 0
-          ? data.accent
-          : "#6b6b64";
+      data.mode !== "exited" && data.peeks.length === 0
+        ? "NO INTERRUPTIONS — FULLY IMAGINED"
+        : "SIGNAL TIMELINE";
+    ctx.fillStyle = data.mode !== "exited" && data.peeks.length === 0 ? data.accent : "#6b6b64";
     ctx.font = `13px ${MONO}`;
     ctx.fillText(caption, tlX, tlY - 40);
   }
@@ -123,25 +116,20 @@ export async function renderReportCard(
   ctx.lineTo(tlX + tlW, tlY);
   ctx.stroke();
 
-  if (data.mode === "exited" && data.exitedAtSec !== undefined) {
-    const ex = tlX + (data.exitedAtSec / Math.max(data.durationSec, 1)) * tlW;
-    ctx.save();
-    ctx.shadowColor = EXIT_COLOR;
-    ctx.shadowBlur = 10;
-    ctx.strokeStyle = EXIT_COLOR;
-    ctx.lineWidth = 2;
-    ctx.setLineDash([2, 3]);
-    ctx.beginPath();
-    ctx.moveTo(ex, tlY - 20);
-    ctx.lineTo(ex, tlY + 6);
-    ctx.stroke();
-    ctx.restore();
+  // Collision-avoidance for peek timestamp labels: skip a label rather than
+  // let it overlap the previous one when two interruptions land close together.
+  let lastLabelRight = -Infinity;
+  const labelGap = 6;
 
-    ctx.fillStyle = EXIT_COLOR;
-    ctx.font = `11px ${MONO}`;
-    const exLabel = fmt(data.exitedAtSec);
-    const exLw = ctx.measureText(exLabel).width;
-    ctx.fillText(exLabel, clamp(ex - exLw / 2, tlX, tlX + tlW - exLw), tlY - 26);
+  function drawTimeLabel(t: number, color: string): void {
+    const x = tlX + (t / Math.max(data.durationSec, 1)) * tlW;
+    const label = fmt(t);
+    const lw = ctx.measureText(label).width;
+    const labelX = clamp(x - lw / 2, tlX, tlX + tlW - lw);
+    if (labelX < lastLabelRight + labelGap) return;
+    ctx.fillStyle = color;
+    ctx.fillText(label, labelX, tlY - 30);
+    lastLabelRight = labelX + lw;
   }
 
   if (showTimeline && data.peeks.length > 0) {
@@ -165,15 +153,26 @@ export async function renderReportCard(
     ctx.restore();
 
     if (showLabels) {
-      ctx.fillStyle = "#9a9a92";
       ctx.font = `11px ${MONO}`;
       for (const t of data.peeks) {
-        const x = tlX + (t / Math.max(data.durationSec, 1)) * tlW;
-        const label = fmt(t);
-        const lw = ctx.measureText(label).width;
-        ctx.fillText(label, clamp(x - lw / 2, tlX, tlX + tlW - lw), tlY - 30);
+        drawTimeLabel(t, "#9a9a92");
       }
     }
+  }
+
+  if (data.mode === "exited" && data.exitedAtSec !== undefined) {
+    const ex = tlX + (data.exitedAtSec / Math.max(data.durationSec, 1)) * tlW;
+    ctx.save();
+    ctx.shadowColor = EXIT_COLOR;
+    ctx.shadowBlur = 10;
+    ctx.strokeStyle = EXIT_COLOR;
+    ctx.lineWidth = 2;
+    ctx.setLineDash([2, 3]);
+    ctx.beginPath();
+    ctx.moveTo(ex, tlY - 20);
+    ctx.lineTo(ex, tlY + 6);
+    ctx.stroke();
+    ctx.restore();
   }
 
   ctx.fillStyle = "#4a4a44";
