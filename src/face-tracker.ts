@@ -73,6 +73,10 @@ export class FaceTracker {
    * Hard safety bounds regardless of what calibration computes — a bad calibration
    * reading must never produce a pair of thresholds the live gate can't actually reach.
    */
+  getThresholds(): { closedThreshold: number; openThreshold: number } {
+    return { closedThreshold: this.closedThreshold, openThreshold: this.openThreshold };
+  }
+
   setThresholds(closed: number, open: number): void {
     const safeOpen = Math.min(Math.max(open, 0.08), 0.55);
     const safeClosed = Math.min(Math.max(closed, safeOpen + 0.1), 0.85);

@@ -38,6 +38,8 @@ function sessionSerial(): string {
 }
 
 async function main(): Promise<void> {
+  const DEBUG = new URLSearchParams(location.search).has("debug");
+
   const app = document.getElementById("app")!;
   app.innerHTML = `
     <div class="stage">
@@ -46,6 +48,7 @@ async function main(): Promise<void> {
       <div class="face-monitor" data-role="monitor" hidden>
         <video data-role="video" playsinline muted></video>
       </div>
+      <div class="debug-hud" data-role="debug" hidden></div>
     </div>
   `;
 
@@ -53,6 +56,8 @@ async function main(): Promise<void> {
   const voidEl = app.querySelector('[data-role="void"]') as HTMLElement;
   const monitorEl = app.querySelector('[data-role="monitor"]') as HTMLElement;
   const video = app.querySelector('[data-role="video"]') as HTMLVideoElement;
+  const debugEl = app.querySelector('[data-role="debug"]') as HTMLElement;
+  if (DEBUG) debugEl.hidden = false;
 
   const track: Track = await fetch(`${import.meta.env.BASE_URL}track.json`).then((r) =>
     r.json(),
@@ -186,6 +191,7 @@ async function main(): Promise<void> {
   await new Promise<void>((resolve) => {
     tracker.start(
       (state) => {
+        if (DEBUG) updateDebugHud(state);
         if (bailedBeforeStart || state.closed) {
           tracker.stop();
           resolve();
@@ -233,6 +239,7 @@ async function main(): Promise<void> {
 
     tracker.start(
       (state: EyeState) => {
+        if (DEBUG) updateDebugHud(state);
         if (ended) return;
 
         if (!interrupted && state.faceDetected && !state.closed) {
@@ -355,6 +362,15 @@ async function main(): Promise<void> {
         () => {},
       );
     });
+  }
+
+  function updateDebugHud(state: EyeState): void {
+    const { closedThreshold, openThreshold } = tracker.getThresholds();
+    debugEl.textContent =
+      `raw ${state.closedness.toFixed(2)}  ` +
+      `open<${openThreshold.toFixed(2)}  closed>${closedThreshold.toFixed(2)}  ` +
+      `face:${state.faceDetected ? "y" : "n"}  ` +
+      `state:${state.closed ? "CLOSED" : "OPEN"}`;
   }
 
   function enterDark(): void {

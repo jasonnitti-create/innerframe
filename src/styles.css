@@ -202,6 +202,20 @@ body {
   filter: grayscale(1) brightness(0.9);
 }
 
+.debug-hud {
+  position: fixed;
+  left: 20px;
+  top: 20px;
+  z-index: 7;
+  font-size: 12px;
+  letter-spacing: 0.02em;
+  color: #ffb84d;
+  background: rgba(0, 0, 0, 0.7);
+  border: 1px solid #4a3a1c;
+  padding: 6px 10px;
+  white-space: pre;
+}
+
 .report {
   display: flex;
   flex-direction: column;
