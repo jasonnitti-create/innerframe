@@ -22,6 +22,16 @@ function clamp(value: number, min: number, max: number): number {
   return Math.min(max, Math.max(min, value));
 }
 
+const RESURFACE_LINES = [
+  "It's flatter out here. Close your eyes to keep dreaming.",
+  "Nothing's running on this side. Close your eyes to keep dreaming.",
+  "You surfaced. Close your eyes to sink back in.",
+];
+
+function pickResurfaceLine(): string {
+  return RESURFACE_LINES[Math.floor(Math.random() * RESURFACE_LINES.length)];
+}
+
 function sessionSerial(): string {
   const n = Math.floor(Math.random() * 9999) + 1;
   return `SESSION №${String(n).padStart(4, "0")}`;
@@ -164,11 +174,19 @@ async function main(): Promise<void> {
 
   audio.unlock();
   await term.type("Close your eyes to begin.");
+  let bailedBeforeStart = false;
+  term.line("Exit", "term-link").addEventListener(
+    "click",
+    () => {
+      bailedBeforeStart = true;
+    },
+    { once: true },
+  );
 
   await new Promise<void>((resolve) => {
     tracker.start(
       (state) => {
-        if (state.closed) {
+        if (bailedBeforeStart || state.closed) {
           tracker.stop();
           resolve();
         }
@@ -177,6 +195,15 @@ async function main(): Promise<void> {
     );
   });
 
+  if (bailedBeforeStart) {
+    tracker.stopCamera();
+    monitorEl.hidden = true;
+    term.clear();
+    term.setStatus("");
+    await term.type("Some other time, then.");
+    return;
+  }
+
   // --- PLAYING / INTERRUPTED loop ---
   monitorEl.style.opacity = "0.25";
   sessionStartedAt = performance.now();
@@ -184,56 +211,68 @@ async function main(): Promise<void> {
   enterDark();
 
   let ended = false;
-  audio.onEnded(() => {
-    ended = true;
-  });
+  let exitedEarly = false;
+  let exitedAtSec = 0;
 
-  let interrupted = false;
+  const playbackDone = new Promise<void>((resolve) => {
+    audio.onEnded(() => {
+      ended = true;
+      resolve();
+    });
 
-  tracker.start(
-    (state: EyeState) => {
+    function requestExit(): void {
       if (ended) return;
+      exitedEarly = true;
+      ended = true;
+      exitedAtSec = audio.currentTime;
+      audio.pauseSoft();
+      resolve();
+    }
 
-      if (!interrupted && state.faceDetected && !state.closed) {
-        interrupted = true;
-        eyesOpenedCount += 1;
-        peeks.push(audio.currentTime);
+    let interrupted = false;
+
+    tracker.start(
+      (state: EyeState) => {
+        if (ended) return;
+
+        if (!interrupted && state.faceDetected && !state.closed) {
+          interrupted = true;
+          eyesOpenedCount += 1;
+          peeks.push(audio.currentTime);
+          audio.pauseSoft();
+          exitDark();
+          term.clear();
+          term.setStatus(`eyes opened: ${eyesOpenedCount}`);
+          term.line("Signal lost.", "line accent");
+          term.line(pickResurfaceLine(), "line dim");
+          term.line("Exit", "term-link").addEventListener("click", requestExit, {
+            once: true,
+          });
+        } else if (interrupted && state.faceDetected && state.closed) {
+          interrupted = false;
+          term.clear();
+          audio.resumeSoft();
+          enterDark();
+        }
+      },
+      () => {
+        if (ended || interrupted) return;
         audio.pauseSoft();
         exitDark();
         term.clear();
-        term.setStatus(`eyes opened: ${eyesOpenedCount}`);
-        term.line("Eyes opened. Signal lost.", "line accent");
-        term.line("Close your eyes to continue.", "line dim");
-      } else if (interrupted && state.faceDetected && state.closed) {
-        interrupted = false;
-        term.clear();
-        audio.resumeSoft();
-        enterDark();
-      }
-    },
-    () => {
-      if (ended || interrupted) return;
-      audio.pauseSoft();
-      exitDark();
-      term.clear();
-      term.line("Lost your face for a moment.", "line accent");
-      term.line("Center yourself and close your eyes to continue.", "line dim");
-      interrupted = true;
-      // Treat a tracking dropout the same as an open-eyes interruption for recovery purposes,
-      // but don't count it toward the eyes-opened tally.
-    },
-  );
-
-  await new Promise<void>((resolve) => {
-    const check = () => {
-      if (ended) {
-        resolve();
-        return;
-      }
-      requestAnimationFrame(check);
-    };
-    check();
+        term.line("Lost your face for a moment.", "line accent");
+        term.line("Center yourself and close your eyes to continue.", "line dim");
+        term.line("Exit", "term-link").addEventListener("click", requestExit, {
+          once: true,
+        });
+        interrupted = true;
+        // Treat a tracking dropout the same as an open-eyes interruption for recovery purposes,
+        // but don't count it toward the eyes-opened tally.
+      },
+    );
   });
+
+  await playbackDone;
 
   tracker.stop();
   tracker.stopCamera();
@@ -244,7 +283,7 @@ async function main(): Promise<void> {
 
   term.clear();
   term.setStatus("");
-  await term.type("Thanks for listening.");
+  await term.type(exitedEarly ? "Leaving so soon." : "Thanks for listening.");
   await sleep(500);
 
   await showReport({
@@ -256,7 +295,8 @@ async function main(): Promise<void> {
     totalSessionSec,
     peeks,
     eyesOpenedCount,
-    honorMode: false,
+    mode: exitedEarly ? "exited" : "completed",
+    exitedAtSec: exitedEarly ? exitedAtSec : undefined,
     sessionSerial: serial,
   });
 
@@ -415,7 +455,7 @@ async function main(): Promise<void> {
       totalSessionSec,
       peeks: [],
       eyesOpenedCount: 0,
-      honorMode: true,
+      mode: "honor",
       sessionSerial: serial,
     });
   }

@@ -1,3 +1,5 @@
+export type SessionMode = "completed" | "honor" | "exited";
+
 export interface SessionData {
   title: string;
   artist: string;
@@ -7,7 +9,8 @@ export interface SessionData {
   totalSessionSec: number;
   peeks: number[];
   eyesOpenedCount: number;
-  honorMode: boolean;
+  mode: SessionMode;
+  exitedAtSec?: number;
   sessionSerial: string;
 }
 
@@ -54,16 +57,25 @@ export async function renderReportCard(
     (data.durationSec / Math.max(data.totalSessionSec, 1)) * 100,
   );
 
-  const stats: [string, string][] = data.honorMode
-    ? [
-        ["MODE", "HONOR SYSTEM"],
-        ["RUNTIME", fmt(data.durationSec)],
-      ]
-    : [
-        ["EYES OPENED", String(data.eyesOpenedCount)],
-        ["SESSION TIME", `${fmt(data.totalSessionSec)} / ${fmt(data.durationSec)}`],
-        ["IMAGINED", `${pct}%`],
-      ];
+  let stats: [string, string][];
+  if (data.mode === "honor") {
+    stats = [
+      ["MODE", "HONOR SYSTEM"],
+      ["RUNTIME", fmt(data.durationSec)],
+    ];
+  } else if (data.mode === "exited") {
+    stats = [
+      ["MODE", "LEFT EARLY"],
+      ["EYES OPENED", String(data.eyesOpenedCount)],
+      ["LEFT AT", `${fmt(data.exitedAtSec ?? 0)} / ${fmt(data.durationSec)}`],
+    ];
+  } else {
+    stats = [
+      ["EYES OPENED", String(data.eyesOpenedCount)],
+      ["SESSION TIME", `${fmt(data.totalSessionSec)} / ${fmt(data.durationSec)}`],
+      ["IMAGINED", `${pct}%`],
+    ];
+  }
 
   let y = 250;
   for (const [label, value] of stats) {
@@ -80,12 +92,16 @@ export async function renderReportCard(
   const tlY = H - 100;
   const tlW = W - 112;
 
-  if (!data.honorMode) {
+  const showTimeline = data.mode !== "honor";
+
+  if (showTimeline) {
     const caption =
-      data.peeks.length === 0
-        ? "NO INTERRUPTIONS — FULLY IMAGINED"
-        : "WHERE THE SIGNAL DROPPED";
-    ctx.fillStyle = data.peeks.length === 0 ? data.accent : "#6b6b64";
+      data.mode === "exited"
+        ? "YOU LEFT BEFORE IT ENDED"
+        : data.peeks.length === 0
+          ? "NO INTERRUPTIONS — FULLY IMAGINED"
+          : "WHERE THE SIGNAL DROPPED";
+    ctx.fillStyle = data.mode !== "exited" && data.peeks.length === 0 ? data.accent : "#6b6b64";
     ctx.font = `13px ${MONO}`;
     ctx.fillText(caption, tlX, tlY - 40);
   }
@@ -97,7 +113,19 @@ export async function renderReportCard(
   ctx.lineTo(tlX + tlW, tlY);
   ctx.stroke();
 
-  if (!data.honorMode && data.peeks.length > 0) {
+  if (data.mode === "exited" && data.exitedAtSec !== undefined) {
+    const ex = tlX + (data.exitedAtSec / Math.max(data.durationSec, 1)) * tlW;
+    ctx.strokeStyle = "#6b6b64";
+    ctx.lineWidth = 2;
+    ctx.setLineDash([2, 3]);
+    ctx.beginPath();
+    ctx.moveTo(ex, tlY - 20);
+    ctx.lineTo(ex, tlY + 6);
+    ctx.stroke();
+    ctx.setLineDash([]);
+  }
+
+  if (showTimeline && data.peeks.length > 0) {
     const showLabels = data.peeks.length <= 5;
     ctx.save();
     ctx.shadowColor = data.accent;

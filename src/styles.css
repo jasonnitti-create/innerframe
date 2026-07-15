@@ -124,6 +124,34 @@ body {
   outline: none;
 }
 
+.term-link {
+  display: block;
+  margin-top: 0.9em;
+  background: none;
+  border: none;
+  padding: 0;
+  font-family: inherit;
+  font-size: 13px;
+  letter-spacing: 0.04em;
+  color: var(--ink-dim);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  text-decoration-color: transparent;
+  cursor: pointer;
+  transition: color 120ms ease, text-decoration-color 120ms ease;
+}
+
+.term-link::before {
+  content: "· ";
+}
+
+.term-link:hover,
+.term-link:focus-visible {
+  color: var(--accent);
+  text-decoration-color: var(--accent);
+  outline: none;
+}
+
 .terminal-status {
   position: absolute;
   right: 24px;
