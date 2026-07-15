@@ -1,4 +1,4 @@
-# GHOSTFRAME
+# INNERFRAME
 
 An interactive listening experience: a song that only plays while your eyes are closed. Open them, and it stops. Close them again, and it picks up where it left off. The video is whatever you imagine — nothing is ever shown.
 

@@ -437,19 +437,19 @@ async function main(): Promise<void> {
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
-      a.download = "ghostframe-session.png";
+      a.download = "innerframe-session.png";
       a.click();
       URL.revokeObjectURL(url);
     });
 
     shareBtn?.addEventListener("click", async () => {
       const blob = await exportPNG(canvas);
-      const file = new File([blob], "ghostframe-session.png", { type: "image/png" });
+      const file = new File([blob], "innerframe-session.png", { type: "image/png" });
       try {
         if (!("canShare" in navigator) || navigator.canShare({ files: [file] })) {
           await navigator.share({
             files: [file],
-            title: "GHOSTFRAME",
+            title: "INNERFRAME",
             text: `I just listened to ${data.title} with my eyes closed.`,
           });
         }
