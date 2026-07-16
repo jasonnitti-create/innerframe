@@ -160,6 +160,28 @@ body {
   outline: none;
 }
 
+.stage-mark {
+  position: absolute;
+  top: 20px;
+  left: 24px;
+  z-index: 20;
+  background: none;
+  border: none;
+  padding: 0;
+  font-family: inherit;
+  font-size: 11px;
+  letter-spacing: 0.14em;
+  color: var(--ink-dim);
+  cursor: pointer;
+  transition: color 120ms ease;
+}
+
+.stage-mark:hover,
+.stage-mark:focus-visible {
+  color: var(--accent);
+  outline: none;
+}
+
 .terminal-status {
   position: absolute;
   right: 24px;

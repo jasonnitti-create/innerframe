@@ -62,6 +62,7 @@ async function main(): Promise<void> {
 
   app.innerHTML = `
     <div class="stage">
+      <button class="stage-mark" data-role="mark" aria-label="Back to INNERFRA.ME">INNERFRA.ME</button>
       <div class="terminal" data-role="terminal"></div>
       <div class="void" data-role="void"></div>
       <canvas class="void-smoke" data-role="void-smoke" aria-hidden="true"></canvas>
@@ -71,6 +72,9 @@ async function main(): Promise<void> {
       <div class="debug-hud" data-role="debug" hidden></div>
     </div>
   `;
+
+  const markEl = app.querySelector('[data-role="mark"]') as HTMLElement;
+  markEl.addEventListener("click", () => location.reload());
 
   const term = new Terminal(app.querySelector('[data-role="terminal"]') as HTMLElement);
   const voidEl = app.querySelector('[data-role="void"]') as HTMLElement;
