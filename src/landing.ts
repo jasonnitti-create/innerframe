@@ -25,12 +25,9 @@ export function showLanding(root: HTMLElement): Promise<void> {
     el.className = "landing landing--init";
     el.innerHTML = `
       <canvas class="landing-gl" aria-hidden="true"></canvas>
-      <div class="landing-corner landing-corner--tl">INNERFRAME · SIGNAL 001</div>
-      <div class="landing-corner landing-corner--tr">EYES-ONLY PLAYBACK</div>
-      <div class="landing-corner landing-corner--bl">ON-DEVICE · NOTHING RECORDED</div>
-      <div class="landing-corner landing-corner--br">SCROLL · ABOUT</div>
+      <div class="landing-corner">scroll</div>
       <section class="landing-hero">
-        <h1 class="hero-logo" data-text="INNERFRAME">INNERFRAME</h1>
+        <h1 class="hero-logo">INNERFRAME</h1>
         <p class="hero-tagline">A music video shot on the inside of your eyelids.</p>
         <button class="hero-enter" data-role="enter">ENTER</button>
       </section>
@@ -160,7 +157,7 @@ function startScene(canvas: HTMLCanvasElement): () => void {
     const ny = 1 - e.clientY / window.innerHeight;
     const dx = nx - mouseTarget.x;
     const dy = ny - mouseTarget.y;
-    mouseEnergy = Math.min(1.4, mouseEnergy + Math.sqrt(dx * dx + dy * dy) * 6);
+    mouseEnergy = Math.min(0.5, mouseEnergy + Math.sqrt(dx * dx + dy * dy) * 2.5);
     mouseTarget.set(nx, ny);
     lastMoveAt = performance.now();
   };

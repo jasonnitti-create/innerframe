@@ -147,19 +147,19 @@ void main() {
   vec2 mp = (uMouse - 0.5) * vec2(aspect, 1.0);
 
   float distToMouse = length(p2 - mp);
-  float influence = exp(-distToMouse * distToMouse * 3.2) * (0.5 + uMouseEnergy * 1.6);
+  float influence = exp(-distToMouse * distToMouse * 3.2) * (0.12 + uMouseEnergy * 0.5);
 
   float t = uTime * 0.045;
-  vec3 domain = vec3(p2 * 1.1, t) + vec3(influence * 0.45, influence * 0.38, influence * 0.2);
+  vec3 domain = vec3(p2 * 1.1, t) + vec3(influence * 0.22, influence * 0.18, influence * 0.1);
 
   vec3 warped = warp(domain, t);
   float n = fbm(warped) * 0.5 + 0.5;
-  n += influence * 0.3;
+  n += influence * 0.14;
   n *= mix(1.0, 0.5, uScroll * 0.85);
 
   vec3 color = palette(n);
 
-  float hot = max(n - 0.93, 0.0) * 3.5;
+  float hot = max(n - 0.96, 0.0) * 2.0;
   color += pow(hot, 2.0) * vec3(1.0, 0.95, 0.86);
 
   float vig = smoothstep(1.05, 0.25, length(p2));

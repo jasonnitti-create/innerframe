@@ -2,6 +2,9 @@
 @import "@fontsource/ibm-plex-mono/500.css";
 @import "@fontsource/ibm-plex-mono/600.css";
 @import "@fontsource/ibm-plex-mono/400-italic.css";
+@import "@fontsource/ibm-plex-serif/300.css";
+@import "@fontsource/ibm-plex-serif/500.css";
+@import "@fontsource/ibm-plex-serif/500-italic.css";
 
 :root {
   --bg: #050505;
@@ -274,6 +277,8 @@ body {
 
 .landing-corner {
   position: fixed;
+  bottom: 20px;
+  right: 26px;
   z-index: 2;
   font-size: 11px;
   letter-spacing: 0.14em;
@@ -282,11 +287,6 @@ body {
   pointer-events: none;
   user-select: none;
 }
-
-.landing-corner--tl { top: 22px; left: 26px; }
-.landing-corner--tr { top: 22px; right: 26px; }
-.landing-corner--bl { bottom: 20px; left: 26px; }
-.landing-corner--br { bottom: 20px; right: 26px; }
 
 .landing-hero {
   position: relative;
@@ -301,37 +301,13 @@ body {
 }
 
 .hero-logo {
-  position: relative;
   margin: 0;
-  font-weight: 600;
-  font-size: clamp(42px, 10.5vw, 148px);
+  font-family: "IBM Plex Serif", serif;
+  font-weight: 300;
+  font-size: clamp(46px, 10.5vw, 150px);
   line-height: 1;
-  letter-spacing: 0.06em;
+  letter-spacing: 0.005em;
   color: var(--ink);
-}
-
-.hero-logo::before {
-  content: attr(data-text);
-  position: absolute;
-  inset: 0;
-  color: transparent;
-  -webkit-text-stroke: 1px var(--accent);
-  opacity: 0.3;
-  transform: translate(7px, -7px);
-  z-index: -1;
-  pointer-events: none;
-}
-
-.hero-logo::after {
-  content: attr(data-text);
-  position: absolute;
-  inset: 0;
-  color: var(--accent);
-  opacity: 0.14;
-  filter: blur(16px);
-  transform: translate(-5px, 5px);
-  z-index: -2;
-  pointer-events: none;
 }
 
 .hero-tagline {
@@ -393,9 +369,11 @@ body {
 
 .about-excerpt {
   margin: 0;
+  font-family: "IBM Plex Serif", serif;
   font-style: italic;
-  font-size: clamp(17px, 2.2vw, 21px);
-  line-height: 1.7;
+  font-weight: 500;
+  font-size: clamp(18px, 2.3vw, 23px);
+  line-height: 1.65;
   color: var(--accent);
   opacity: 0.85;
 }
