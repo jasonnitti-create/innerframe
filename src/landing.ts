@@ -9,6 +9,7 @@ import {
   grainFragmentShader,
 } from "./phosphene-shader";
 import { uiSound } from "./ui-sound";
+import { CymaticRing } from "./cymatic";
 
 const REDUCED_MOTION = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 
@@ -54,9 +55,21 @@ export function showLanding(root: HTMLElement): Promise<void> {
     el.className = "landing landing--init";
     el.innerHTML = `
       <canvas class="landing-gl" aria-hidden="true"></canvas>
+      <div class="cursor-glow" aria-hidden="true"></div>
+      <div class="reveal-layer" aria-hidden="true">
+        <span class="reveal-ring" style="left: 18%; top: 22%; width: 15vmin; height: 15vmin;"></span>
+        <span class="reveal-ring" style="left: 80%; top: 70%; width: 11vmin; height: 11vmin;"></span>
+        <span class="reveal-ring" style="left: 12%; top: 82%; width: 8vmin; height: 8vmin;"></span>
+        <span class="reveal-tick" style="left: 8%; top: 10%;"></span>
+        <span class="reveal-tick" style="left: 92%; top: 90%; transform: translate(-100%, -100%) rotate(180deg);"></span>
+        <span class="reveal-frag" style="left: 15%; top: 58%;">1</span>
+        <span class="reveal-frag" style="left: 72%; top: 18%;">И</span>
+        <span class="reveal-frag" style="left: 62%; top: 84%;">3.4</span>
+        <span class="reveal-frag" style="left: 32%; top: 12%;">//</span>
+        <span class="reveal-frag" style="left: 86%; top: 45%;">4</span>
+      </div>
       <button class="about-link" data-role="about-open">About</button>
       <section class="landing-hero">
-        <div class="tune-ring" aria-hidden="true"></div>
         <h1 class="wordmark" aria-label="INNERFRA.ME">${letters}</h1>
         <p class="hero-tagline">A music video shot on the inside of your eyelids.</p>
       </section>
@@ -91,7 +104,7 @@ export function showLanding(root: HTMLElement): Promise<void> {
     const hero = el.querySelector(".landing-hero") as HTMLElement;
     const wordmark = el.querySelector(".wordmark") as HTMLElement;
     const chars = Array.from(el.querySelectorAll<HTMLElement>(".wm-ch"));
-    const ring = el.querySelector(".tune-ring") as HTMLElement;
+    const cymatic = new CymaticRing(hero);
     const cue = el.querySelector('[data-role="cue"]') as HTMLElement;
     const fill = el.querySelector('[data-role="fill"]') as HTMLElement;
     const overlay = el.querySelector('[data-role="overlay"]') as HTMLElement;
@@ -102,6 +115,27 @@ export function showLanding(root: HTMLElement): Promise<void> {
     let lastInputAt = 0;
     let lastDetent = 0;
     let raf = 0;
+
+    // --- cursor light: a weak, local flashlight with inertia ---
+    // Radius starts at 0 (light "off") until the pointer actually moves, then
+    // tracks with a lag and tightens on fast movement / expands once idle.
+    let lightTX = window.innerWidth / 2;
+    let lightTY = window.innerHeight / 2;
+    let lightX = lightTX;
+    let lightY = lightTY;
+    let lightRadius = 0;
+    let lightActive = false;
+    let prevPX = lightTX;
+    let prevPY = lightTY;
+    let speedSmoothed = 0;
+    let idleSince = performance.now();
+
+    const onLightPointer = (e: PointerEvent): void => {
+      lightTX = e.clientX;
+      lightTY = e.clientY;
+      lightActive = true;
+    };
+    window.addEventListener("pointermove", onLightPointer, { passive: true });
 
     // Lock each letter to its natural width once fonts land, so a glyph
     // swapping to a blank or narrower substitute flickers in place instead
@@ -201,7 +235,9 @@ export function showLanding(root: HTMLElement): Promise<void> {
       el.classList.add("landing--off");
       window.setTimeout(() => {
         scene.dispose();
+        cymatic.dispose();
         removeInputs();
+        window.removeEventListener("pointermove", onLightPointer);
         document.documentElement.style.overflow = "";
         el.remove();
         resolve();
@@ -300,7 +336,7 @@ export function showLanding(root: HTMLElement): Promise<void> {
       lockIn();
     });
 
-    // --- per-frame: decay, letter drift, ring, cue, scene tune ---
+    // --- per-frame: decay, letter drift, cymatic figure, cursor light, cue ---
     const phases = chars.map(() => Math.random() * Math.PI * 2);
     const frame = (): void => {
       const now = performance.now();
@@ -319,10 +355,29 @@ export function showLanding(root: HTMLElement): Promise<void> {
         chars[i].style.transform = `translate(${x.toFixed(2)}px, ${y.toFixed(2)}px)`;
       }
 
-      const ringScale = 1.15 - progress * 0.81;
-      const ringOpacity = 0.1 + progress * 0.45;
-      ring.style.transform = `translate(-50%, -50%) scale(${ringScale.toFixed(3)})`;
-      ring.style.opacity = ringOpacity.toFixed(3);
+      cymatic.draw(progress, t);
+
+      // cursor light: lag toward the pointer, tighten on fast movement,
+      // expand slightly once the pointer has been still for a moment
+      const dx = lightTX - prevPX;
+      const dy = lightTY - prevPY;
+      const instSpeed = Math.sqrt(dx * dx + dy * dy);
+      prevPX = lightTX;
+      prevPY = lightTY;
+      speedSmoothed += (instSpeed - speedSmoothed) * 0.2;
+      if (instSpeed > 0.4) idleSince = now;
+      const idleBoost = Math.min(1, (now - idleSince) / 900) * 36;
+
+      lightX += (lightTX - lightX) * 0.09;
+      lightY += (lightTY - lightY) * 0.09;
+      const targetRadius = lightActive
+        ? Math.min(250, Math.max(85, 185 - speedSmoothed * 2.2 + idleBoost))
+        : 0;
+      lightRadius += (targetRadius - lightRadius) * 0.08;
+
+      el.style.setProperty("--lx", `${lightX.toFixed(1)}px`);
+      el.style.setProperty("--ly", `${lightY.toFixed(1)}px`);
+      el.style.setProperty("--lr", `${Math.max(0, lightRadius).toFixed(1)}px`);
 
       fill.style.transform = `scaleX(${progress.toFixed(3)})`;
       cue.style.opacity = progress > 0.88 ? "0" : "1";
@@ -338,7 +393,7 @@ export function showLanding(root: HTMLElement): Promise<void> {
     if (!REDUCED_MOTION) {
       raf = requestAnimationFrame(frame);
     } else {
-      ring.style.opacity = "0.14";
+      cymatic.draw(0.12, 0);
     }
   });
 }
