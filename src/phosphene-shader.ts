@@ -113,33 +113,12 @@ uniform float uTime;
 uniform vec2 uResolution;
 uniform vec2 uMouse;
 uniform float uMouseEnergy;
-uniform float uScroll;
-uniform vec3 uAccent;
+uniform float uTune;
 uniform vec3 uBg;
 
 varying vec2 vUv;
 
 ${NOISE_GLSL}
-
-// Black dominates until t ~0.58 — the statistically typical fbm value should
-// stay dark, so color only appears where the field genuinely peaks, reading
-// as scattered glowing patches rather than a uniform colored wash.
-vec3 palette(float t) {
-  t = clamp(t, 0.0, 1.0);
-  vec3 c0 = uBg;
-  vec3 c1 = vec3(0.02, 0.09, 0.12);
-  vec3 c2 = vec3(0.05, 0.5, 0.58);
-  vec3 c3 = uAccent;
-  vec3 c4 = vec3(1.0, 0.6, 0.24);
-  vec3 c5 = vec3(1.0, 0.97, 0.9);
-
-  vec3 col = mix(c0, c1, smoothstep(0.0, 0.7, t));
-  col = mix(col, c2, smoothstep(0.7, 0.8, t));
-  col = mix(col, c3, smoothstep(0.8, 0.89, t));
-  col = mix(col, c4, smoothstep(0.89, 0.95, t));
-  col = mix(col, c5, smoothstep(0.95, 1.0, t));
-  return col;
-}
 
 void main() {
   float aspect = uResolution.x / uResolution.y;
@@ -147,23 +126,30 @@ void main() {
   vec2 mp = (uMouse - 0.5) * vec2(aspect, 1.0);
 
   float distToMouse = length(p2 - mp);
-  float influence = exp(-distToMouse * distToMouse * 3.2) * (0.12 + uMouseEnergy * 0.5);
+  float influence = exp(-distToMouse * distToMouse * 3.2) * (0.1 + uMouseEnergy * 0.45);
 
-  float t = uTime * 0.045;
-  vec3 domain = vec3(p2 * 1.1, t) + vec3(influence * 0.22, influence * 0.18, influence * 0.1);
+  float t = uTime * 0.04;
+  vec3 domain = vec3(p2 * 1.1, t) + vec3(influence * 0.2, influence * 0.16, influence * 0.1);
 
   vec3 warped = warp(domain, t);
   float n = fbm(warped) * 0.5 + 0.5;
-  n += influence * 0.14;
-  n *= mix(1.0, 0.5, uScroll * 0.85);
+  n += influence * 0.12;
 
-  vec3 color = palette(n);
+  // Monochrome: hazy grays surfacing out of near-black, no hue anywhere.
+  // The field recedes (darkens, calms) as the viewer tunes in — external
+  // signal giving way before the experience starts.
+  float haze = smoothstep(0.55, 1.0, n) * 0.42;
 
-  float hot = max(n - 0.96, 0.0) * 2.0;
-  color += pow(hot, 2.0) * vec3(1.0, 0.95, 0.86);
+  // Breathing pool of light at center, reference-style: slow, faint, alive.
+  float pool = exp(-dot(p2, p2) * 2.4) * (0.045 + 0.02 * sin(uTime * 0.45));
 
-  float vig = smoothstep(1.05, 0.25, length(p2));
-  color *= mix(0.7, 1.0, vig);
+  float lum = haze + pool;
+  lum *= mix(1.0, 0.35, uTune);
+
+  vec3 color = uBg + vec3(lum) * vec3(1.0, 1.0, 0.97);
+
+  float vig = smoothstep(1.1, 0.3, length(p2));
+  color *= mix(0.75, 1.0, vig);
 
   gl_FragColor = vec4(color, 1.0);
 }
@@ -173,6 +159,7 @@ export const grainFragmentShader = /* glsl */ `
 uniform sampler2D tDiffuse;
 uniform float uTime;
 uniform vec2 uResolution;
+uniform float uAmount;
 varying vec2 vUv;
 
 float hash(vec2 p) {
@@ -192,7 +179,7 @@ void main() {
   col.b = texture2D(tDiffuse, uv + dir * ca).b;
 
   float g = hash(uv * uResolution.xy + fract(uTime * 60.0) * 97.0);
-  col += (g - 0.5) * 0.04;
+  col += (g - 0.5) * uAmount;
 
   gl_FragColor = vec4(col, 1.0);
 }

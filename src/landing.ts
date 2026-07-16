@@ -8,94 +8,311 @@ import {
   phospheneFragmentShader,
   grainFragmentShader,
 } from "./phosphene-shader";
+import { uiSound } from "./ui-sound";
 
 const REDUCED_MOTION = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+const WORDMARK = "INNERFRA.ME";
 
 const EXCERPT =
   "The track dropped, and behind closed lids the innerframe rolled — no signal from outside, just cortex working the reel, splicing sound into sight the way the old net used to splice code into dream.";
 
+// Substitute glyphs for the corruption flicker — one character at a time,
+// briefly, like a signal mis-decoding. Letters without a substitute blank
+// out instead, which reads as a dropout.
+const GLYPH_SUBS: Record<string, string> = {
+  I: "1",
+  N: "И",
+  E: "3",
+  A: "4",
+};
+
+interface SceneHandle {
+  dispose: () => void;
+  setTune: (p: number) => void;
+  pulse: (strength?: number) => void;
+}
+
 /**
- * Full-bleed landing: a shader-driven phosphene field + hero type + about
- * section. Resolves when the user clicks ENTER. Cleans up all GL resources
- * and listeners before resolving so the experience starts on a quiet page.
+ * The landing is a tuner: a monochrome haze field, the INNERFRA.ME wordmark,
+ * and one interaction — scroll to tune in. Progress decays when you stop, so
+ * entering takes a moment of commitment; at full lock the landing dissolves
+ * straight into the experience. No ENTER button. About lives in a click-open
+ * overlay. Resolves when the tune completes.
  */
 export function showLanding(root: HTMLElement): Promise<void> {
   return new Promise((resolve) => {
+    const letters = WORDMARK.split("")
+      .map((ch) =>
+        ch === "."
+          ? `<span class="wm-dot" aria-hidden="true">.</span>`
+          : `<span class="wm-ch" data-ch="${ch}">${ch}</span>`,
+      )
+      .join("");
+
     const el = document.createElement("div");
     el.className = "landing landing--init";
     el.innerHTML = `
       <canvas class="landing-gl" aria-hidden="true"></canvas>
-      <div class="landing-corner">scroll</div>
+      <button class="about-link" data-role="about-open">About</button>
       <section class="landing-hero">
-        <h1 class="hero-logo">INNERFRAME</h1>
+        <div class="tune-ring" aria-hidden="true"></div>
+        <h1 class="wordmark" aria-label="INNERFRA.ME">${letters}</h1>
         <p class="hero-tagline">A music video shot on the inside of your eyelids.</p>
-        <button class="hero-enter" data-role="enter">ENTER</button>
       </section>
-      <section class="landing-about">
-        <p class="about-label">ABOUT</p>
-        <p class="about-excerpt">&ldquo;${EXCERPT}&rdquo;</p>
-        <div class="about-body">
-          <p>INNERFRAME is a music video you can only watch with your eyes closed.</p>
-          <p>A song is sealed inside this page. Your camera reads one thing — whether your eyes are open or shut — and the music plays only in the dark. Open your eyes and the signal cuts. Close them and it picks up exactly where you left it. The picture is yours to make, spliced from memory, mood, and whatever the track pulls up from the deep.</p>
-          <p>We stare at screens all day and hold nothing for more than three seconds. This asks for three minutes, and it pays out the only footage nobody else can watch.</p>
-          <p>Everything happens on your machine. The camera feed never leaves your browser; nothing is recorded, nothing is uploaded. When the song ends you get a session report — where you peeked, how long you stayed under — rendered as a card you can keep or share.</p>
+      <div class="tune-cue" data-role="cue">
+        <span class="tune-cue-label">${REDUCED_MOTION ? "" : "scroll to begin"}</span>
+        <span class="tune-cue-rule" aria-hidden="true"><span class="tune-cue-fill" data-role="fill"></span></span>
+      </div>
+      ${REDUCED_MOTION ? '<button class="hero-enter landing-begin" data-role="begin">BEGIN</button>' : ""}
+      <div class="about-overlay" data-role="overlay" hidden>
+        <button class="about-close" data-role="about-close">Close</button>
+        <div class="about-inner">
+          <p class="about-label">ABOUT</p>
+          <p class="about-excerpt">&ldquo;${EXCERPT}&rdquo;</p>
+          <div class="about-body">
+            <p>INNERFRA.ME is a music video you can only watch with your eyes closed.</p>
+            <p>A song is sealed inside this page. Your camera reads one thing — whether your eyes are open or shut — and the music plays only in the dark. Open your eyes and the signal cuts. Close them and it picks up exactly where you left it. The picture is yours to make, spliced from memory, mood, and whatever the track pulls up from the deep.</p>
+            <p>We stare at screens all day and hold nothing for more than three seconds. This asks for three minutes, and it pays out the only footage nobody else can watch.</p>
+            <p>Everything happens on your machine. The camera feed never leaves your browser; nothing is recorded, nothing is uploaded. When the song ends you get a session report — where you peeked, how long you stayed under — rendered as a card you can keep or share.</p>
+          </div>
+          <p class="about-credit">CONCEPT 2014 · BUILT 2026 · JASON NITTI</p>
         </div>
-        <button class="hero-enter" data-role="enter">ENTER</button>
-        <p class="about-credit">CONCEPT 2014 · BUILT 2026 · JASON NITTI</p>
-      </section>
+      </div>
     `;
     root.appendChild(el);
 
+    document.documentElement.style.overflow = "hidden";
+    uiSound.installUnlock();
+
     const canvas = el.querySelector(".landing-gl") as HTMLCanvasElement;
-    const disposeGL = startScene(canvas);
+    const scene = startScene(canvas);
 
-    requestAnimationFrame(() => el.classList.remove("landing--init"));
+    const hero = el.querySelector(".landing-hero") as HTMLElement;
+    const wordmark = el.querySelector(".wordmark") as HTMLElement;
+    const chars = Array.from(el.querySelectorAll<HTMLElement>(".wm-ch"));
+    const ring = el.querySelector(".tune-ring") as HTMLElement;
+    const cue = el.querySelector('[data-role="cue"]') as HTMLElement;
+    const fill = el.querySelector('[data-role="fill"]') as HTMLElement;
+    const overlay = el.querySelector('[data-role="overlay"]') as HTMLElement;
 
-    // Corner chrome belongs to the hero threshold — it recedes once the
-    // reader has scrolled into About, so it doesn't collide with that
-    // section's own label/credit lines sitting at the same viewport edges.
-    const corners = el.querySelectorAll<HTMLElement>(".landing-corner");
-    const onCornerScroll = (): void => {
-      const fade = 1 - Math.min(1, window.scrollY / 220);
-      corners.forEach((c) => {
-        c.style.opacity = String(fade);
-      });
+    let progress = 0;
+    let complete = false;
+    let overlayOpen = false;
+    let lastInputAt = 0;
+    let lastDetent = 0;
+    let raf = 0;
+
+    // Lock each letter to its natural width once fonts land, so a glyph
+    // swapping to a blank or narrower substitute flickers in place instead
+    // of reflowing the whole proportional-serif wordmark sideways.
+    void document.fonts.ready.then(() => {
+      for (const c of chars) {
+        c.style.width = `${c.getBoundingClientRect().width.toFixed(2)}px`;
+        c.style.textAlign = "center";
+      }
+    });
+
+    // --- corruption flicker: one glyph at a time ---
+    let corruptTimer = 0;
+    const scheduleCorrupt = (): void => {
+      const idleMs = 3200 + Math.random() * 3400;
+      const tunedMs = 260 + Math.random() * 380;
+      const wait = idleMs + (tunedMs - idleMs) * progress;
+      corruptTimer = window.setTimeout(() => {
+        if (!complete && !overlayOpen && chars.length > 0) {
+          const target = chars[Math.floor(Math.random() * chars.length)];
+          const original = target.dataset.ch ?? "";
+          target.textContent = GLYPH_SUBS[original] ?? " ";
+          window.setTimeout(() => {
+            target.textContent = original;
+          }, 90 + Math.random() * 70);
+        }
+        scheduleCorrupt();
+      }, wait);
     };
-    window.addEventListener("scroll", onCornerScroll, { passive: true });
+
+    // --- brief signal loss: whole mark displaces for ~100ms ---
+    let dropTimer = 0;
+    const scheduleDrop = (): void => {
+      dropTimer = window.setTimeout(() => {
+        if (!complete && !overlayOpen) {
+          wordmark.classList.add("wordmark--drop");
+          scene.pulse(0.6);
+          window.setTimeout(() => wordmark.classList.remove("wordmark--drop"), 110);
+        }
+        scheduleDrop();
+      }, 8000 + Math.random() * 6000);
+    };
+
+    if (!REDUCED_MOTION) {
+      scheduleCorrupt();
+      scheduleDrop();
+    }
 
     const finish = (): void => {
+      window.clearTimeout(corruptTimer);
+      window.clearTimeout(dropTimer);
+      cancelAnimationFrame(raf);
       el.classList.add("landing--off");
       window.setTimeout(() => {
-        disposeGL();
-        window.removeEventListener("scroll", onCornerScroll);
+        scene.dispose();
+        removeInputs();
+        document.documentElement.style.overflow = "";
         el.remove();
-        window.scrollTo(0, 0);
         resolve();
       }, 650);
     };
 
-    el.querySelectorAll('[data-role="enter"]').forEach((btn) => {
-      btn.addEventListener("click", finish, { once: true });
+    const lockIn = (): void => {
+      if (complete) return;
+      complete = true;
+      uiSound.confirm();
+      scene.setTune(1);
+      scene.pulse(1);
+      el.classList.add("landing--locked");
+      window.setTimeout(finish, 380);
+    };
+
+    const addProgress = (amount: number): void => {
+      if (complete || overlayOpen) return;
+      progress = Math.min(1, Math.max(0, progress + amount));
+      lastInputAt = performance.now();
+      const detent = Math.floor(progress * 14);
+      if (detent !== lastDetent) {
+        lastDetent = detent;
+        if (detent > 0) uiSound.tick();
+      }
+      if (progress >= 1) lockIn();
+    };
+
+    // --- inputs: wheel, touch drag, keyboard ---
+    const onWheel = (e: WheelEvent): void => addProgress(e.deltaY * 0.00038);
+
+    let touchY: number | null = null;
+    const onTouchStart = (e: TouchEvent): void => {
+      touchY = e.touches[0]?.clientY ?? null;
+    };
+    const onTouchMove = (e: TouchEvent): void => {
+      const y = e.touches[0]?.clientY;
+      if (touchY !== null && y !== undefined) {
+        addProgress((touchY - y) * 0.0016);
+        touchY = y;
+      }
+    };
+
+    const onKey = (e: KeyboardEvent): void => {
+      if (overlayOpen) {
+        if (e.key === "Escape") closeOverlay();
+        return;
+      }
+      if (e.key === "ArrowDown" || e.key === "PageDown" || e.key === " " || e.key === "Enter") {
+        e.preventDefault();
+        addProgress(0.12);
+      }
+    };
+
+    window.addEventListener("wheel", onWheel, { passive: true });
+    window.addEventListener("touchstart", onTouchStart, { passive: true });
+    window.addEventListener("touchmove", onTouchMove, { passive: true });
+    window.addEventListener("keydown", onKey);
+
+    const removeInputs = (): void => {
+      window.removeEventListener("wheel", onWheel);
+      window.removeEventListener("touchstart", onTouchStart);
+      window.removeEventListener("touchmove", onTouchMove);
+      window.removeEventListener("keydown", onKey);
+    };
+
+    // --- about overlay ---
+    // The About link and the overlay's Close button share the same fixed
+    // top-right position by design, so the link must vanish while the
+    // overlay is up or the two labels render superimposed.
+    const aboutLink = el.querySelector('[data-role="about-open"]') as HTMLElement;
+    const aboutClose = el.querySelector('[data-role="about-close"]') as HTMLElement;
+    const openOverlay = (): void => {
+      overlayOpen = true;
+      uiSound.click();
+      overlay.hidden = false;
+      aboutLink.style.visibility = "hidden";
+      window.setTimeout(() => overlay.classList.add("about-overlay--open"), 20);
+      aboutClose.focus();
+    };
+    const closeOverlay = (): void => {
+      overlayOpen = false;
+      uiSound.click();
+      overlay.classList.remove("about-overlay--open");
+      window.setTimeout(() => {
+        overlay.hidden = true;
+        aboutLink.style.visibility = "";
+      }, 300);
+      aboutLink.focus();
+    };
+    aboutLink.addEventListener("click", openOverlay);
+    aboutClose.addEventListener("click", closeOverlay);
+
+    el.querySelector('[data-role="begin"]')?.addEventListener("click", () => {
+      progress = 1;
+      lockIn();
     });
+
+    // --- per-frame: decay, letter drift, ring, cue, scene tune ---
+    const phases = chars.map(() => Math.random() * Math.PI * 2);
+    const frame = (): void => {
+      const now = performance.now();
+
+      if (!complete && progress > 0 && now - lastInputAt > 500) {
+        progress = Math.max(0, progress - 0.0018);
+      }
+
+      scene.setTune(progress);
+
+      const t = now / 1000;
+      const amp = 0.4 + progress * 3.4;
+      for (let i = 0; i < chars.length; i++) {
+        const x = Math.sin(t * 1.7 + phases[i]) * amp * 0.4;
+        const y = Math.cos(t * 1.3 + phases[i] * 1.7) * amp;
+        chars[i].style.transform = `translate(${x.toFixed(2)}px, ${y.toFixed(2)}px)`;
+      }
+
+      const ringScale = 1.15 - progress * 0.81;
+      const ringOpacity = 0.1 + progress * 0.45;
+      ring.style.transform = `translate(-50%, -50%) scale(${ringScale.toFixed(3)})`;
+      ring.style.opacity = ringOpacity.toFixed(3);
+
+      fill.style.transform = `scaleX(${progress.toFixed(3)})`;
+      cue.style.opacity = progress > 0.88 ? "0" : "1";
+      hero.style.setProperty("--tune", progress.toFixed(3));
+
+      raf = requestAnimationFrame(frame);
+    };
+
+    // setTimeout rather than rAF: rAF can be throttled to seconds in
+    // background/embedded contexts, which would hold the whole landing at
+    // opacity 0 long after load.
+    window.setTimeout(() => el.classList.remove("landing--init"), 40);
+    if (!REDUCED_MOTION) {
+      raf = requestAnimationFrame(frame);
+    } else {
+      ring.style.opacity = "0.14";
+    }
   });
 }
 
-function startScene(canvas: HTMLCanvasElement): () => void {
+function startScene(canvas: HTMLCanvasElement): SceneHandle {
   let renderer: THREE.WebGLRenderer;
   try {
     renderer = new THREE.WebGLRenderer({ canvas, antialias: false, powerPreference: "high-performance" });
   } catch {
     canvas.remove();
-    return () => {};
+    return { dispose: () => {}, setTune: () => {}, pulse: () => {} };
   }
 
   const dpr = Math.min(window.devicePixelRatio || 1, 2);
   renderer.setPixelRatio(dpr);
   renderer.setSize(window.innerWidth, window.innerHeight);
 
-  const accentHex = getComputedStyle(document.documentElement).getPropertyValue("--accent").trim() || "#39ff6a";
-  const accent = new THREE.Color(accentHex);
-  const bg = new THREE.Color(0x0b0a08);
+  const bg = new THREE.Color(0x070707);
 
   const scene = new THREE.Scene();
   const camera = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1);
@@ -105,8 +322,7 @@ function startScene(canvas: HTMLCanvasElement): () => void {
     uResolution: { value: new THREE.Vector2(window.innerWidth * dpr, window.innerHeight * dpr) },
     uMouse: { value: new THREE.Vector2(0.5, 0.5) },
     uMouseEnergy: { value: 0 },
-    uScroll: { value: 0 },
-    uAccent: { value: new THREE.Vector3(accent.r, accent.g, accent.b) },
+    uTune: { value: 0 },
     uBg: { value: new THREE.Vector3(bg.r, bg.g, bg.b) },
   };
 
@@ -126,9 +342,9 @@ function startScene(canvas: HTMLCanvasElement): () => void {
 
   const bloom = new UnrealBloomPass(
     new THREE.Vector2(window.innerWidth, window.innerHeight),
-    0.75, // strength
-    0.55, // radius
-    0.55, // threshold — only genuine highlights bloom, not midtones
+    0.5,
+    0.5,
+    0.5,
   );
   composer.addPass(bloom);
 
@@ -137,6 +353,7 @@ function startScene(canvas: HTMLCanvasElement): () => void {
       tDiffuse: { value: null },
       uTime: { value: 0 },
       uResolution: { value: new THREE.Vector2(window.innerWidth * dpr, window.innerHeight * dpr) },
+      uAmount: { value: 0.05 },
     },
     vertexShader: phospheneVertexShader,
     fragmentShader: grainFragmentShader,
@@ -144,13 +361,13 @@ function startScene(canvas: HTMLCanvasElement): () => void {
   grainPass.renderToScreen = true;
   composer.addPass(grainPass);
 
-  // Mouse position smoothed toward its target for an organic lag, and an
-  // "energy" scalar that spikes on fast movement then decays — the phosphor-
-  // persistence feel of having just brushed past something in the dark.
   const mouseTarget = new THREE.Vector2(0.5, 0.5);
   const mousePos = new THREE.Vector2(0.5, 0.5);
   let mouseEnergy = 0;
   let lastMoveAt = performance.now();
+  let tuneTarget = 0;
+  let tune = 0;
+  let pulseLevel = 0;
 
   const onPointerMove = (e: PointerEvent): void => {
     const nx = e.clientX / window.innerWidth;
@@ -164,6 +381,7 @@ function startScene(canvas: HTMLCanvasElement): () => void {
   window.addEventListener("pointermove", onPointerMove, { passive: true });
 
   const onResize = (): void => {
+    camera.updateProjectionMatrix();
     renderer.setSize(window.innerWidth, window.innerHeight);
     composer.setSize(window.innerWidth, window.innerHeight);
     bloom.setSize(window.innerWidth, window.innerHeight);
@@ -171,12 +389,6 @@ function startScene(canvas: HTMLCanvasElement): () => void {
     grainPass.uniforms.uResolution.value.set(window.innerWidth * dpr, window.innerHeight * dpr);
   };
   window.addEventListener("resize", onResize);
-
-  const onScroll = (): void => {
-    const max = document.documentElement.scrollHeight - window.innerHeight;
-    uniforms.uScroll.value = max > 0 ? Math.min(1, window.scrollY / max) : 0;
-  };
-  window.addEventListener("scroll", onScroll, { passive: true });
 
   let raf = 0;
   const start = performance.now();
@@ -186,14 +398,16 @@ function startScene(canvas: HTMLCanvasElement): () => void {
     const t = (now - start) / 1000;
 
     mousePos.lerp(mouseTarget, 0.07);
-    if (now - lastMoveAt > 60) {
-      mouseEnergy *= 0.94;
-    }
+    if (now - lastMoveAt > 60) mouseEnergy *= 0.94;
+    tune += (tuneTarget - tune) * 0.08;
+    pulseLevel *= 0.9;
 
     uniforms.uTime.value = t;
     uniforms.uMouse.value.copy(mousePos);
     uniforms.uMouseEnergy.value = mouseEnergy;
+    uniforms.uTune.value = tune;
     grainPass.uniforms.uTime.value = t;
+    grainPass.uniforms.uAmount.value = 0.05 + tune * 0.07 + pulseLevel * 0.14;
 
     composer.render();
     raf = requestAnimationFrame(frame);
@@ -205,14 +419,21 @@ function startScene(canvas: HTMLCanvasElement): () => void {
     raf = requestAnimationFrame(frame);
   }
 
-  return () => {
-    cancelAnimationFrame(raf);
-    window.removeEventListener("pointermove", onPointerMove);
-    window.removeEventListener("resize", onResize);
-    window.removeEventListener("scroll", onScroll);
-    quad.geometry.dispose();
-    material.dispose();
-    composer.dispose();
-    renderer.dispose();
+  return {
+    dispose: () => {
+      cancelAnimationFrame(raf);
+      window.removeEventListener("pointermove", onPointerMove);
+      window.removeEventListener("resize", onResize);
+      quad.geometry.dispose();
+      material.dispose();
+      composer.dispose();
+      renderer.dispose();
+    },
+    setTune: (p: number) => {
+      tuneTarget = p;
+    },
+    pulse: (strength = 1) => {
+      pulseLevel = Math.max(pulseLevel, strength);
+    },
   };
 }

@@ -1,3 +1,5 @@
+import { uiSound } from "./ui-sound";
+
 const REDUCED_MOTION = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 
 function sleep(ms: number): Promise<void> {
@@ -72,6 +74,7 @@ export class Terminal {
       btn.addEventListener(
         "click",
         () => {
+          uiSound.click();
           btn.remove();
           resolve();
         },

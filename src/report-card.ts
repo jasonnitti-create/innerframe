@@ -43,7 +43,7 @@ export async function renderReportCard(
 
   ctx.fillStyle = "#e8e8e0";
   ctx.font = `600 15px ${MONO}`;
-  ctx.fillText("INNERFRAME", 56, 74);
+  ctx.fillText("INNERFRA.ME", 56, 74);
 
   ctx.fillStyle = "#6b6b64";
   ctx.font = `13px ${MONO}`;

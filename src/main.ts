@@ -4,6 +4,7 @@ import { FaceTracker, type EyeState } from "./face-tracker";
 import { AudioEngine } from "./audio-engine";
 import { Beeper } from "./beeper";
 import { showLanding } from "./landing";
+import { uiSound } from "./ui-sound";
 import { renderReportCard, exportPNG, type SessionData } from "./report-card";
 
 interface Track {
@@ -44,6 +45,7 @@ async function main(): Promise<void> {
   const DEBUG = params.has("debug");
 
   const app = document.getElementById("app")!;
+  uiSound.installUnlock();
 
   const track: Track = await fetch(`${import.meta.env.BASE_URL}track.json`).then((r) =>
     r.json(),
@@ -51,8 +53,8 @@ async function main(): Promise<void> {
 
   document.documentElement.style.setProperty("--accent", track.accent);
 
-  // Landing is the threshold: logo, tagline, ENTER, and the about below the
-  // fold. ?direct skips straight to the experience (useful while testing).
+  // Landing is the threshold: wordmark, tagline, and one interaction —
+  // scroll to tune in. ?direct skips straight to the experience.
   if (!params.has("direct")) {
     await showLanding(app);
   }
@@ -458,7 +460,7 @@ async function main(): Promise<void> {
         if (!("canShare" in navigator) || navigator.canShare({ files: [file] })) {
           await navigator.share({
             files: [file],
-            title: "INNERFRAME",
+            title: "INNERFRA.ME",
             text: `I just listened to ${data.title} with my eyes closed.`,
           });
         }
