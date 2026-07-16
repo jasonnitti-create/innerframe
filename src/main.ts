@@ -3,6 +3,7 @@ import { Terminal } from "./terminal";
 import { FaceTracker, type EyeState } from "./face-tracker";
 import { AudioEngine } from "./audio-engine";
 import { Beeper } from "./beeper";
+import { showLanding } from "./landing";
 import { renderReportCard, exportPNG, type SessionData } from "./report-card";
 
 interface Track {
@@ -39,9 +40,23 @@ function sessionSerial(): string {
 }
 
 async function main(): Promise<void> {
-  const DEBUG = new URLSearchParams(location.search).has("debug");
+  const params = new URLSearchParams(location.search);
+  const DEBUG = params.has("debug");
 
   const app = document.getElementById("app")!;
+
+  const track: Track = await fetch(`${import.meta.env.BASE_URL}track.json`).then((r) =>
+    r.json(),
+  );
+
+  document.documentElement.style.setProperty("--accent", track.accent);
+
+  // Landing is the threshold: logo, tagline, ENTER, and the about below the
+  // fold. ?direct skips straight to the experience (useful while testing).
+  if (!params.has("direct")) {
+    await showLanding(app);
+  }
+
   app.innerHTML = `
     <div class="stage">
       <div class="terminal" data-role="terminal"></div>
@@ -59,12 +74,6 @@ async function main(): Promise<void> {
   const video = app.querySelector('[data-role="video"]') as HTMLVideoElement;
   const debugEl = app.querySelector('[data-role="debug"]') as HTMLElement;
   if (DEBUG) debugEl.hidden = false;
-
-  const track: Track = await fetch(`${import.meta.env.BASE_URL}track.json`).then((r) =>
-    r.json(),
-  );
-
-  document.documentElement.style.setProperty("--accent", track.accent);
 
   const audio = new AudioEngine(`${import.meta.env.BASE_URL}${track.audioSrc.replace(/^\.\//, "")}`);
   const tracker = new FaceTracker(video);

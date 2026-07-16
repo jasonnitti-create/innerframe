@@ -10,9 +10,11 @@
   },
   "dependencies": {
     "@fontsource/ibm-plex-mono": "^5.2.7",
-    "@mediapipe/tasks-vision": "^0.10.22"
+    "@mediapipe/tasks-vision": "^0.10.22",
+    "three": "^0.185.1"
   },
   "devDependencies": {
+    "@types/three": "^0.185.1",
     "typescript": "^5.7.3",
     "vite": "^6.0.11"
   }
