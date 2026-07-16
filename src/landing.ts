@@ -58,9 +58,14 @@ export function showLanding(root: HTMLElement): Promise<void> {
           <p class="about-label">ABOUT</p>
           <div class="about-body">
             <p>INNERFRA.ME is a music video you can only watch with your eyes closed.</p>
-            <p>A song is sealed inside this page. Your camera reads one thing — whether your eyes are open or shut — and the music plays only in the dark. Open your eyes and the signal cuts. Close them and it picks up exactly where you left it. The picture is yours to make, spliced from memory, mood, and whatever the track pulls up from the deep.</p>
-            <p>We stare at screens all day and hold nothing for more than three seconds. This asks for three minutes, and it pays out the only footage nobody else can watch.</p>
-            <p>Everything happens on your machine. The camera feed never leaves your browser; nothing is recorded, nothing is uploaded. When the song ends you get a session report — where you peeked, how long you stayed under — rendered as a card you can keep or share.</p>
+            <p>A song is locked inside this page. Your camera watches for one thing: open or closed.</p>
+            <p>Shut your eyes and the track begins. Look up and the signal drops. Close them again and it resumes from the exact moment you left.</p>
+            <p>The screen gives you nothing. Your mind supplies the footage. Memory. Mood. Faces. Places. Whatever the song pulls up from the deep.</p>
+            <p>We spend all day being shown what to see. INNERFRA.ME asks for three minutes in the dark and gives you the only cut nobody else can watch.</p>
+            <p>Everything stays on your machine. The camera feed never leaves your browser. Nothing is recorded. Nothing is uploaded.</p>
+            <p>When the track ends, you get a session report showing where you broke the spell and how long you stayed under, rendered as a card you can keep or share.</p>
+            <p>You heard the same song as everyone else.</p>
+            <p>You saw something entirely your own.</p>
           </div>
           <p class="about-credit">CONCEPT 2014 · BUILT 2026 · JASON NITTI</p>
         </div>
