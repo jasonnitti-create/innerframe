@@ -16,7 +16,6 @@ export interface SessionData {
 }
 
 const MONO = "'IBM Plex Mono', monospace";
-const SERIF = "'IBM Plex Serif', serif";
 const W = 1200;
 // The fixed layout (header, stats, timeline) is always laid out against this
 // height. A reflection appends extra canvas height below it rather than
@@ -42,38 +41,26 @@ function wrapText(ctx: CanvasRenderingContext2D, text: string, maxWidth: number)
 }
 
 // Gap from the timeline's "0:00 / total" baseline to the divider, divider to
-// the "WHAT STAYED" label baseline, and last text line to the card's inner
+// the "FRAME READOUT" label baseline, and last text line to the card's inner
 // bottom edge. Shared by the height calculation and the draw pass so the two
 // can never drift apart and clip the text.
 const REFL_GAP = 44;
 const REFL_LABEL_OFFSET = 34;
 const REFL_BOTTOM_PAD = 40;
+const REFL_FONT = `16px ${MONO}`;
+const REFL_LINE_HEIGHT = 24;
 
 interface ReflectionBlock {
   lines: string[];
-  font: string;
-  lineHeight: number;
-  centered: boolean;
   blockHeight: number;
 }
 
 function layoutReflection(measureCtx: CanvasRenderingContext2D, reflection: string): ReflectionBlock {
-  const short = reflection.length <= 30;
-  const font = short
-    ? `italic 500 34px ${SERIF}`
-    : reflection.length <= 140
-      ? `italic 500 20px ${SERIF}`
-      : `italic 500 16px ${SERIF}`;
-  measureCtx.font = font;
-  const maxWidth = short ? W - 200 : W - 112;
-  const lines = wrapText(measureCtx, reflection, maxWidth);
-  const lineHeight = short ? 46 : reflection.length <= 140 ? 30 : 25;
+  measureCtx.font = REFL_FONT;
+  const lines = wrapText(measureCtx, reflection, W - 112);
   return {
     lines,
-    font,
-    lineHeight,
-    centered: short,
-    blockHeight: REFL_GAP + REFL_LABEL_OFFSET + lines.length * lineHeight + REFL_BOTTOM_PAD + 24.5,
+    blockHeight: REFL_GAP + REFL_LABEL_OFFSET + lines.length * REFL_LINE_HEIGHT + REFL_BOTTOM_PAD + 24.5,
   };
 }
 // A fixed alarm red, independent of the track's accent color — signals
@@ -92,9 +79,7 @@ export async function renderReportCard(
   let reflectionBlock: ReflectionBlock | null = null;
   let H = BASE_H;
   if (reflection) {
-    await document.fonts.load(`italic 500 34px ${SERIF}`);
-    await document.fonts.load(`italic 500 20px ${SERIF}`);
-    await document.fonts.load(`italic 500 16px ${SERIF}`);
+    await document.fonts.load(REFL_FONT);
     const measureCtx = document.createElement("canvas").getContext("2d")!;
     reflectionBlock = layoutReflection(measureCtx, reflection);
     // BASE_H - 76 is where the fixed layout's "0:00 / total" baseline sits.
@@ -262,21 +247,16 @@ export async function renderReportCard(
     ctx.lineTo(W - 56, dividerY);
     ctx.stroke();
 
-    ctx.fillStyle = "#6b6b64";
+    ctx.fillStyle = data.accent;
     ctx.font = `13px ${MONO}`;
-    ctx.fillText("WHAT STAYED", 56, dividerY + REFL_LABEL_OFFSET);
+    ctx.fillText("FRAME READOUT", 56, dividerY + REFL_LABEL_OFFSET);
 
-    ctx.fillStyle = "#e8e8e0";
-    ctx.font = reflectionBlock.font;
-    let ly = dividerY + REFL_LABEL_OFFSET + reflectionBlock.lineHeight;
+    ctx.fillStyle = "#6b6b64";
+    ctx.font = REFL_FONT;
+    let ly = dividerY + REFL_LABEL_OFFSET + REFL_LINE_HEIGHT;
     for (const line of reflectionBlock.lines) {
-      if (reflectionBlock.centered) {
-        const lw = ctx.measureText(line).width;
-        ctx.fillText(line, (W - lw) / 2, ly);
-      } else {
-        ctx.fillText(line, 56, ly);
-      }
-      ly += reflectionBlock.lineHeight;
+      ctx.fillText(line, 56, ly);
+      ly += REFL_LINE_HEIGHT;
     }
   }
 }

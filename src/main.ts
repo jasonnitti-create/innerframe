@@ -495,6 +495,18 @@ async function main(): Promise<void> {
       return reflectInput.value.replace(/\s*\n\s*/g, " ").trim();
     }
 
+    // Plain Enter locks the reflection in: the field fades out, signaling the
+    // card is done and ready to download. Shift+Enter still inserts a line
+    // break for anyone composing a longer thought (flattened on render regardless).
+    reflectInput.addEventListener("keydown", (e) => {
+      if (e.key !== "Enter" || e.shiftKey) return;
+      e.preventDefault();
+      window.clearTimeout(debounceHandle);
+      void renderReportCard(canvas, { ...data, reflection: currentReflection() });
+      reflectField.classList.add("reflect-field--done");
+      window.setTimeout(() => reflectField.remove(), 320);
+    });
+
     downloadBtn.addEventListener("click", async () => {
       await renderReportCard(canvas, { ...data, reflection: currentReflection() });
       const blob = await exportPNG(canvas);
