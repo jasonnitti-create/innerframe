@@ -98,6 +98,29 @@ export function showLanding(root: HTMLElement): Promise<void> {
     const wordmark = el.querySelector(".wordmark") as HTMLElement;
     const tagline = el.querySelector(".hero-tagline") as HTMLElement;
     const chars = Array.from(el.querySelectorAll<HTMLElement>(".wm-ch"));
+
+    // All glyphs in visual order (letters + the dot), for a spread that's
+    // symmetric around the middle of the mark — left half pushes left,
+    // right half pushes right — rather than letter-spacing's one-sided
+    // "everything shifts right of its predecessor."
+    //
+    // The per-step distance is computed from actual available viewport
+    // width rather than a fixed em guess — a fixed constant either clipped
+    // past the edge on narrow screens or was too timid on wide ones.
+    const glyphs = Array.from(wordmark.children) as HTMLElement[];
+    const glyphCenter = (glyphs.length - 1) / 2;
+    let glyphOffsets = glyphs.map(() => 0);
+
+    const recomputeGlyphOffsets = (): void => {
+      const restWidth = wordmark.getBoundingClientRect().width;
+      const fontSizePx = parseFloat(getComputedStyle(wordmark).fontSize) || 1;
+      const margin = 20;
+      const maxSpreadPx = Math.max(0, (window.innerWidth - restWidth) / 2 - margin);
+      const maxSpreadEm = maxSpreadPx / fontSizePx;
+      const perStepEm = glyphCenter > 0 ? maxSpreadEm / glyphCenter : 0;
+      glyphOffsets = glyphs.map((_, i) => (i - glyphCenter) * perStepEm);
+    };
+    window.addEventListener("resize", recomputeGlyphOffsets);
     const ring = el.querySelector(".tune-ring") as HTMLElement;
     const cue = el.querySelector('[data-role="cue"]') as HTMLElement;
     const fill = el.querySelector('[data-role="fill"]') as HTMLElement;
@@ -118,6 +141,7 @@ export function showLanding(root: HTMLElement): Promise<void> {
         c.style.width = `${c.getBoundingClientRect().width.toFixed(2)}px`;
         c.style.textAlign = "center";
       }
+      recomputeGlyphOffsets();
     });
 
     // --- corruption flicker: one glyph at a time, biased by cursor proximity ---
@@ -285,6 +309,7 @@ export function showLanding(root: HTMLElement): Promise<void> {
       window.removeEventListener("touchmove", onTouchMove);
       window.removeEventListener("keydown", onKey);
       window.removeEventListener("pointermove", onWordmarkPointer);
+      window.removeEventListener("resize", recomputeGlyphOffsets);
     };
 
     // --- about overlay ---
@@ -329,11 +354,13 @@ export function showLanding(root: HTMLElement): Promise<void> {
 
       scene.setTune(progress);
 
-      // Tuning in: the mark holds its size but tracks wider — letters
-      // spreading outward — while the ring (below) contracts inward. Two
-      // opposing motions instead of one thing simply growing.
-      const tracking = 0.09 + progress * 0.35;
-      wordmark.style.letterSpacing = `${tracking.toFixed(3)}em`;
+      // Tuning in: the mark holds its size, but each glyph pushes away from
+      // the mark's own center — left half left, right half right — while
+      // the ring (below) contracts inward. Two opposing motions instead of
+      // one thing simply growing.
+      for (let i = 0; i < glyphs.length; i++) {
+        glyphs[i].style.transform = `translateX(${(glyphOffsets[i] * progress).toFixed(3)}em)`;
+      }
       wordmark.style.transform = `translateX(${dropOffset}px)`;
       tagline.style.opacity = Math.max(0, 1 - progress * 1.6).toFixed(3);
 
