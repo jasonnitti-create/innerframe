@@ -113,15 +113,59 @@ export function showLanding(root: HTMLElement): Promise<void> {
       }
     });
 
-    // --- corruption flicker: one glyph at a time ---
+    // --- corruption flicker: one glyph at a time, biased by cursor proximity ---
+    // Getting close to the wordmark disturbs it more often — reuses this same
+    // flicker mechanism rather than adding a separate hover-glitch effect, so
+    // cursor interaction and ambient corruption never feel like two competing
+    // systems.
+    let pointerX = -9999;
+    let pointerY = -9999;
+    const onWordmarkPointer = (e: PointerEvent): void => {
+      pointerX = e.clientX;
+      pointerY = e.clientY;
+    };
+    window.addEventListener("pointermove", onWordmarkPointer, { passive: true });
+
+    const proximity = (): number => {
+      const rect = wordmark.getBoundingClientRect();
+      const cx = rect.left + rect.width / 2;
+      const cy = rect.top + rect.height / 2;
+      const dx = pointerX - cx;
+      const dy = pointerY - cy;
+      const dist = Math.sqrt(dx * dx + dy * dy);
+      const radius = Math.max(rect.width, rect.height) * 0.85;
+      return Math.max(0, 1 - dist / radius);
+    };
+
+    const nearestCharToPointer = (): HTMLElement => {
+      let best = chars[0];
+      let bestDist = Infinity;
+      for (const c of chars) {
+        const r = c.getBoundingClientRect();
+        const dx = pointerX - (r.left + r.width / 2);
+        const dy = pointerY - (r.top + r.height / 2);
+        const d = dx * dx + dy * dy;
+        if (d < bestDist) {
+          bestDist = d;
+          best = c;
+        }
+      }
+      return best;
+    };
+
     let corruptTimer = 0;
     const scheduleCorrupt = (): void => {
+      const near = proximity();
       const idleMs = 3200 + Math.random() * 3400;
       const tunedMs = 260 + Math.random() * 380;
-      const wait = idleMs + (tunedMs - idleMs) * progress;
+      const baseWait = idleMs + (tunedMs - idleMs) * progress;
+      const wait = baseWait * (1 - near * 0.72);
       corruptTimer = window.setTimeout(() => {
         if (!complete && !overlayOpen && chars.length > 0) {
-          const target = chars[Math.floor(Math.random() * chars.length)];
+          const target =
+            proximity() > 0.3
+              ? nearestCharToPointer()
+              : chars[Math.floor(Math.random() * chars.length)];
           const original = target.dataset.ch ?? "";
           target.textContent = GLYPH_SUBS[original] ?? " ";
           window.setTimeout(() => {
@@ -353,7 +397,7 @@ function startScene(canvas: HTMLCanvasElement): SceneHandle {
       tDiffuse: { value: null },
       uTime: { value: 0 },
       uResolution: { value: new THREE.Vector2(window.innerWidth * dpr, window.innerHeight * dpr) },
-      uAmount: { value: 0.05 },
+      uAmount: { value: 0.085 },
     },
     vertexShader: phospheneVertexShader,
     fragmentShader: grainFragmentShader,
@@ -407,7 +451,7 @@ function startScene(canvas: HTMLCanvasElement): SceneHandle {
     uniforms.uMouseEnergy.value = mouseEnergy;
     uniforms.uTune.value = tune;
     grainPass.uniforms.uTime.value = t;
-    grainPass.uniforms.uAmount.value = 0.05 + tune * 0.07 + pulseLevel * 0.14;
+    grainPass.uniforms.uAmount.value = 0.085 + tune * 0.09 + pulseLevel * 0.18;
 
     composer.render();
     raf = requestAnimationFrame(frame);

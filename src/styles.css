@@ -309,7 +309,7 @@ body {
   font-weight: 300;
   font-size: clamp(34px, 6.6vw, 92px);
   line-height: 1;
-  letter-spacing: 0.14em;
+  letter-spacing: 0.09em;
   color: var(--ink);
   white-space: nowrap;
   user-select: none;
@@ -408,14 +408,42 @@ body {
   z-index: 3;
   background: none;
   border: none;
-  padding: 6px 2px;
+  padding: 8px 14px;
   font-family: inherit;
   font-size: 11px;
   letter-spacing: 0.22em;
   text-transform: uppercase;
   color: var(--ink-dim);
   cursor: pointer;
-  transition: color 160ms ease;
+  transition: color 160ms ease, border-color 160ms ease;
+}
+
+/* Reticle corners on opposite sides only, Sirin/HUD-style — a target mark,
+   not a full box, so it stays a hint rather than decoration. */
+.about-link::before,
+.about-close::before {
+  content: "";
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 8px;
+  height: 8px;
+  border-top: 1px solid currentColor;
+  border-left: 1px solid currentColor;
+  opacity: 0.5;
+}
+
+.about-link::after,
+.about-close::after {
+  content: "";
+  position: absolute;
+  bottom: 2px;
+  right: 2px;
+  width: 8px;
+  height: 8px;
+  border-bottom: 1px solid currentColor;
+  border-right: 1px solid currentColor;
+  opacity: 0.5;
 }
 
 .about-link:hover,

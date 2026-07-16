@@ -178,7 +178,12 @@ void main() {
   col.g = texture2D(tDiffuse, uv).g;
   col.b = texture2D(tDiffuse, uv + dir * ca).b;
 
-  float g = hash(uv * uResolution.xy + fract(uTime * 60.0) * 97.0);
+  // Two noise octaves at different cell sizes, averaged, read as clumped
+  // film grain rather than uniform per-pixel static.
+  vec2 cell = floor(uv * uResolution.xy * 0.8);
+  float g1 = hash(cell + fract(uTime * 60.0) * 97.0);
+  float g2 = hash(cell * 0.4 + 11.0 + fract(uTime * 41.0) * 53.0);
+  float g = mix(g1, g2, 0.45);
   col += (g - 0.5) * uAmount;
 
   gl_FragColor = vec4(col, 1.0);
