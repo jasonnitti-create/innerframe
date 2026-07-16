@@ -57,8 +57,7 @@ export function showLanding(root: HTMLElement): Promise<void> {
         <div class="about-inner">
           <p class="about-label">ABOUT</p>
           <div class="about-body">
-            <p>INNERFRA.ME is a music video you can only watch with your eyes closed.</p>
-            <p>A song is locked inside this page. Your camera watches for one thing: open or closed.</p>
+            <p class="about-lede">INNERFRA.ME is a music video you can only watch with your eyes closed.</p>
             <p>Shut your eyes and the track begins. Look up and the signal drops. Close them again and it resumes from the exact moment you left.</p>
             <p>The screen gives you nothing. Your mind supplies the footage. Memory. Mood. Faces. Places. Whatever the song pulls up from the deep.</p>
             <p>We spend all day being shown what to see. INNERFRA.ME asks for three minutes in the dark and gives you the only cut nobody else can watch.</p>
