@@ -9,7 +9,6 @@ import {
   grainFragmentShader,
 } from "./phosphene-shader";
 import { uiSound } from "./ui-sound";
-import { CymaticRing } from "./cymatic";
 
 const REDUCED_MOTION = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 
@@ -37,9 +36,12 @@ interface SceneHandle {
 /**
  * The landing is a tuner: a monochrome haze field, the INNERFRA.ME wordmark,
  * and one interaction — scroll to tune in. Progress decays when you stop, so
- * entering takes a moment of commitment; at full lock the landing dissolves
- * straight into the experience. No ENTER button. About lives in a click-open
- * overlay. Resolves when the tune completes.
+ * entering takes a moment of commitment. Tuning reads as a descent: the
+ * wordmark grows and rushes toward the viewer while the tagline falls away,
+ * as though sinking toward the mark and about to pass through it. At full
+ * lock the whole stage collapses like a CRT powering off (squash to a line,
+ * to a point, gone) straight into the terminal boot. No ENTER button. About
+ * lives in a click-open overlay. Resolves when the tune completes.
  */
 export function showLanding(root: HTMLElement): Promise<void> {
   return new Promise((resolve) => {
@@ -54,30 +56,20 @@ export function showLanding(root: HTMLElement): Promise<void> {
     const el = document.createElement("div");
     el.className = "landing landing--init";
     el.innerHTML = `
-      <canvas class="landing-gl" aria-hidden="true"></canvas>
-      <div class="cursor-glow" aria-hidden="true"></div>
-      <div class="reveal-layer" aria-hidden="true">
-        <span class="reveal-ring" style="left: 18%; top: 22%; width: 15vmin; height: 15vmin;"></span>
-        <span class="reveal-ring" style="left: 80%; top: 70%; width: 11vmin; height: 11vmin;"></span>
-        <span class="reveal-ring" style="left: 12%; top: 82%; width: 8vmin; height: 8vmin;"></span>
-        <span class="reveal-tick" style="left: 8%; top: 10%;"></span>
-        <span class="reveal-tick" style="left: 92%; top: 90%; transform: translate(-100%, -100%) rotate(180deg);"></span>
-        <span class="reveal-frag" style="left: 15%; top: 58%;">1</span>
-        <span class="reveal-frag" style="left: 72%; top: 18%;">И</span>
-        <span class="reveal-frag" style="left: 62%; top: 84%;">3.4</span>
-        <span class="reveal-frag" style="left: 32%; top: 12%;">//</span>
-        <span class="reveal-frag" style="left: 86%; top: 45%;">4</span>
+      <div class="landing-stage">
+        <canvas class="landing-gl" aria-hidden="true"></canvas>
+        <button class="about-link" data-role="about-open">About</button>
+        <section class="landing-hero">
+          <div class="tune-ring" aria-hidden="true"></div>
+          <h1 class="wordmark" aria-label="INNERFRA.ME">${letters}</h1>
+          <p class="hero-tagline">A music video shot on the inside of your eyelids.</p>
+        </section>
+        <div class="tune-cue" data-role="cue">
+          <span class="tune-cue-label">${REDUCED_MOTION ? "" : "scroll to begin"}</span>
+          <span class="tune-cue-rule" aria-hidden="true"><span class="tune-cue-fill" data-role="fill"></span></span>
+        </div>
+        ${REDUCED_MOTION ? '<button class="hero-enter landing-begin" data-role="begin">BEGIN</button>' : ""}
       </div>
-      <button class="about-link" data-role="about-open">About</button>
-      <section class="landing-hero">
-        <h1 class="wordmark" aria-label="INNERFRA.ME">${letters}</h1>
-        <p class="hero-tagline">A music video shot on the inside of your eyelids.</p>
-      </section>
-      <div class="tune-cue" data-role="cue">
-        <span class="tune-cue-label">${REDUCED_MOTION ? "" : "scroll to begin"}</span>
-        <span class="tune-cue-rule" aria-hidden="true"><span class="tune-cue-fill" data-role="fill"></span></span>
-      </div>
-      ${REDUCED_MOTION ? '<button class="hero-enter landing-begin" data-role="begin">BEGIN</button>' : ""}
       <div class="about-overlay" data-role="overlay" hidden>
         <button class="about-close" data-role="about-close">Close</button>
         <div class="about-inner">
@@ -101,10 +93,12 @@ export function showLanding(root: HTMLElement): Promise<void> {
     const canvas = el.querySelector(".landing-gl") as HTMLCanvasElement;
     const scene = startScene(canvas);
 
+    const stage = el.querySelector(".landing-stage") as HTMLElement;
     const hero = el.querySelector(".landing-hero") as HTMLElement;
     const wordmark = el.querySelector(".wordmark") as HTMLElement;
+    const tagline = el.querySelector(".hero-tagline") as HTMLElement;
     const chars = Array.from(el.querySelectorAll<HTMLElement>(".wm-ch"));
-    const cymatic = new CymaticRing(hero);
+    const ring = el.querySelector(".tune-ring") as HTMLElement;
     const cue = el.querySelector('[data-role="cue"]') as HTMLElement;
     const fill = el.querySelector('[data-role="fill"]') as HTMLElement;
     const overlay = el.querySelector('[data-role="overlay"]') as HTMLElement;
@@ -115,27 +109,6 @@ export function showLanding(root: HTMLElement): Promise<void> {
     let lastInputAt = 0;
     let lastDetent = 0;
     let raf = 0;
-
-    // --- cursor light: a weak, local flashlight with inertia ---
-    // Radius starts at 0 (light "off") until the pointer actually moves, then
-    // tracks with a lag and tightens on fast movement / expands once idle.
-    let lightTX = window.innerWidth / 2;
-    let lightTY = window.innerHeight / 2;
-    let lightX = lightTX;
-    let lightY = lightTY;
-    let lightRadius = 0;
-    let lightActive = false;
-    let prevPX = lightTX;
-    let prevPY = lightTY;
-    let speedSmoothed = 0;
-    let idleSince = performance.now();
-
-    const onLightPointer = (e: PointerEvent): void => {
-      lightTX = e.clientX;
-      lightTY = e.clientY;
-      lightActive = true;
-    };
-    window.addEventListener("pointermove", onLightPointer, { passive: true });
 
     // Lock each letter to its natural width once fonts land, so a glyph
     // swapping to a blank or narrower substitute flickers in place instead
@@ -201,7 +174,7 @@ export function showLanding(root: HTMLElement): Promise<void> {
               ? nearestCharToPointer()
               : chars[Math.floor(Math.random() * chars.length)];
           const original = target.dataset.ch ?? "";
-          target.textContent = GLYPH_SUBS[original] ?? " ";
+          target.textContent = GLYPH_SUBS[original] ?? " ";
           window.setTimeout(() => {
             target.textContent = original;
           }, 90 + Math.random() * 70);
@@ -211,13 +184,21 @@ export function showLanding(root: HTMLElement): Promise<void> {
     };
 
     // --- brief signal loss: whole mark displaces for ~100ms ---
+    // dropOffset feeds into the same per-frame transform string as the zoom
+    // (below), rather than toggling a class that would fight the inline
+    // transform the frame loop sets every tick.
+    let dropOffset = 0;
     let dropTimer = 0;
     const scheduleDrop = (): void => {
       dropTimer = window.setTimeout(() => {
         if (!complete && !overlayOpen) {
           wordmark.classList.add("wordmark--drop");
+          dropOffset = 2;
           scene.pulse(0.6);
-          window.setTimeout(() => wordmark.classList.remove("wordmark--drop"), 110);
+          window.setTimeout(() => {
+            wordmark.classList.remove("wordmark--drop");
+            dropOffset = 0;
+          }, 110);
         }
         scheduleDrop();
       }, 8000 + Math.random() * 6000);
@@ -235,13 +216,11 @@ export function showLanding(root: HTMLElement): Promise<void> {
       el.classList.add("landing--off");
       window.setTimeout(() => {
         scene.dispose();
-        cymatic.dispose();
         removeInputs();
-        window.removeEventListener("pointermove", onLightPointer);
         document.documentElement.style.overflow = "";
         el.remove();
         resolve();
-      }, 650);
+      }, 200);
     };
 
     const lockIn = (): void => {
@@ -250,8 +229,11 @@ export function showLanding(root: HTMLElement): Promise<void> {
       uiSound.confirm();
       scene.setTune(1);
       scene.pulse(1);
-      el.classList.add("landing--locked");
-      window.setTimeout(finish, 380);
+      // The CRT-collapse animation on the stage does the heavy lifting
+      // visually; finish() just needs to wait for it before cutting to
+      // the terminal boot underneath.
+      stage.classList.add("landing-stage--collapse");
+      window.setTimeout(finish, REDUCED_MOTION ? 0 : 520);
     };
 
     const addProgress = (amount: number): void => {
@@ -302,6 +284,7 @@ export function showLanding(root: HTMLElement): Promise<void> {
       window.removeEventListener("touchstart", onTouchStart);
       window.removeEventListener("touchmove", onTouchMove);
       window.removeEventListener("keydown", onKey);
+      window.removeEventListener("pointermove", onWordmarkPointer);
     };
 
     // --- about overlay ---
@@ -336,7 +319,7 @@ export function showLanding(root: HTMLElement): Promise<void> {
       lockIn();
     });
 
-    // --- per-frame: decay, letter drift, cymatic figure, cursor light, cue ---
+    // --- per-frame: decay, letter drift, descent zoom, ring, cue, scene tune ---
     const phases = chars.map(() => Math.random() * Math.PI * 2);
     const frame = (): void => {
       const now = performance.now();
@@ -355,29 +338,18 @@ export function showLanding(root: HTMLElement): Promise<void> {
         chars[i].style.transform = `translate(${x.toFixed(2)}px, ${y.toFixed(2)}px)`;
       }
 
-      cymatic.draw(progress, t);
+      // Descent: the mark grows toward the viewer as though closing the
+      // distance to it; the tagline recedes faster, like it's further back
+      // and left behind first.
+      const zoom = 1 + progress * progress * 2.2;
+      wordmark.style.transform = `scale(${zoom.toFixed(3)}) translateX(${dropOffset}px)`;
+      tagline.style.opacity = Math.max(0, 1 - progress * 1.6).toFixed(3);
+      tagline.style.transform = `scale(${(1 + progress * 0.5).toFixed(3)})`;
 
-      // cursor light: lag toward the pointer, tighten on fast movement,
-      // expand slightly once the pointer has been still for a moment
-      const dx = lightTX - prevPX;
-      const dy = lightTY - prevPY;
-      const instSpeed = Math.sqrt(dx * dx + dy * dy);
-      prevPX = lightTX;
-      prevPY = lightTY;
-      speedSmoothed += (instSpeed - speedSmoothed) * 0.2;
-      if (instSpeed > 0.4) idleSince = now;
-      const idleBoost = Math.min(1, (now - idleSince) / 900) * 36;
-
-      lightX += (lightTX - lightX) * 0.09;
-      lightY += (lightTY - lightY) * 0.09;
-      const targetRadius = lightActive
-        ? Math.min(250, Math.max(85, 185 - speedSmoothed * 2.2 + idleBoost))
-        : 0;
-      lightRadius += (targetRadius - lightRadius) * 0.08;
-
-      el.style.setProperty("--lx", `${lightX.toFixed(1)}px`);
-      el.style.setProperty("--ly", `${lightY.toFixed(1)}px`);
-      el.style.setProperty("--lr", `${Math.max(0, lightRadius).toFixed(1)}px`);
+      const ringScale = 1.15 - progress * 0.81;
+      const ringOpacity = 0.1 + progress * 0.45;
+      ring.style.transform = `translate(-50%, -50%) scale(${ringScale.toFixed(3)})`;
+      ring.style.opacity = ringOpacity.toFixed(3);
 
       fill.style.transform = `scaleX(${progress.toFixed(3)})`;
       cue.style.opacity = progress > 0.88 ? "0" : "1";
@@ -393,7 +365,7 @@ export function showLanding(root: HTMLElement): Promise<void> {
     if (!REDUCED_MOTION) {
       raf = requestAnimationFrame(frame);
     } else {
-      cymatic.draw(0.12, 0);
+      ring.style.opacity = "0.14";
     }
   });
 }
