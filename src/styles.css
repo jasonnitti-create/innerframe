@@ -553,17 +553,6 @@ body {
   color: var(--ink-dim);
 }
 
-.about-excerpt {
-  margin: 0;
-  font-family: "IBM Plex Serif", serif;
-  font-style: italic;
-  font-weight: 500;
-  font-size: clamp(18px, 2.3vw, 23px);
-  line-height: 1.65;
-  color: var(--ink);
-  opacity: 0.9;
-}
-
 .about-body p {
   margin: 0 0 1.1em;
   font-size: 15px;

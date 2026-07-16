@@ -5,9 +5,6 @@ const REDUCED_MOTION = window.matchMedia("(prefers-reduced-motion: reduce)").mat
 
 const WORDMARK = "INNERFRA.ME";
 
-const EXCERPT =
-  "The track dropped, and behind closed lids the innerframe rolled — no signal from outside, just cortex working the reel, splicing sound into sight the way the old net used to splice code into dream.";
-
 // Substitute glyphs for the corruption flicker — one character at a time,
 // briefly, like a signal mis-decoding. Letters without a substitute blank
 // out instead, which reads as a dropout.
@@ -59,7 +56,6 @@ export function showLanding(root: HTMLElement): Promise<void> {
         <button class="about-close" data-role="about-close">Close</button>
         <div class="about-inner">
           <p class="about-label">ABOUT</p>
-          <p class="about-excerpt">&ldquo;${EXCERPT}&rdquo;</p>
           <div class="about-body">
             <p>INNERFRA.ME is a music video you can only watch with your eyes closed.</p>
             <p>A song is sealed inside this page. Your camera reads one thing — whether your eyes are open or shut — and the music plays only in the dark. Open your eyes and the signal cuts. Close them and it picks up exactly where you left it. The picture is yours to make, spliced from memory, mood, and whatever the track pulls up from the deep.</p>
