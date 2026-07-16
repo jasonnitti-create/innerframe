@@ -4,6 +4,7 @@ import { FaceTracker, type EyeState } from "./face-tracker";
 import { AudioEngine } from "./audio-engine";
 import { Beeper } from "./beeper";
 import { showLanding } from "./landing";
+import { createPhospheneScene, type PhospheneSceneHandle } from "./phosphene-scene";
 import { uiSound } from "./ui-sound";
 import { renderReportCard, exportPNG, type SessionData } from "./report-card";
 
@@ -63,6 +64,7 @@ async function main(): Promise<void> {
     <div class="stage">
       <div class="terminal" data-role="terminal"></div>
       <div class="void" data-role="void"></div>
+      <canvas class="void-smoke" data-role="void-smoke" aria-hidden="true"></canvas>
       <div class="face-monitor" data-role="monitor" hidden>
         <video data-role="video" playsinline muted></video>
       </div>
@@ -72,10 +74,16 @@ async function main(): Promise<void> {
 
   const term = new Terminal(app.querySelector('[data-role="terminal"]') as HTMLElement);
   const voidEl = app.querySelector('[data-role="void"]') as HTMLElement;
+  const voidSmokeCanvas = app.querySelector('[data-role="void-smoke"]') as HTMLCanvasElement;
   const monitorEl = app.querySelector('[data-role="monitor"]') as HTMLElement;
   const video = app.querySelector('[data-role="video"]') as HTMLVideoElement;
   const debugEl = app.querySelector('[data-role="debug"]') as HTMLElement;
   if (DEBUG) debugEl.hidden = false;
+
+  // The smoke that fills the void behind closed eyes — same field as the
+  // landing's, created lazily on the first close so it doesn't spend GPU
+  // cycles during boot/calibration, and disposed once the session ends.
+  let voidSmoke: PhospheneSceneHandle | null = null;
 
   const audio = new AudioEngine(`${import.meta.env.BASE_URL}${track.audioSrc.replace(/^\.\//, "")}`);
   const tracker = new FaceTracker(video);
@@ -300,6 +308,7 @@ async function main(): Promise<void> {
   tracker.stopCamera();
   monitorEl.hidden = true;
   exitDark();
+  disposeVoidSmoke();
 
   const totalSessionSec = (performance.now() - sessionStartedAt) / 1000;
 
@@ -403,10 +412,19 @@ async function main(): Promise<void> {
 
   function enterDark(): void {
     voidEl.classList.add("on");
+    if (!voidSmoke) voidSmoke = createPhospheneScene(voidSmokeCanvas);
+    voidSmokeCanvas.classList.add("on");
   }
 
   function exitDark(): void {
     voidEl.classList.remove("on");
+    voidSmokeCanvas.classList.remove("on");
+    voidSmoke?.pulse(0.8);
+  }
+
+  function disposeVoidSmoke(): void {
+    voidSmoke?.dispose();
+    voidSmoke = null;
   }
 
   async function showReport(data: SessionData): Promise<void> {
@@ -486,6 +504,7 @@ async function main(): Promise<void> {
     });
 
     exitDark();
+    disposeVoidSmoke();
     const totalSessionSec = (performance.now() - start) / 1000;
     term.clear();
     await term.type("Thanks for listening.");
