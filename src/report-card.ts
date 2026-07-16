@@ -12,11 +12,70 @@ export interface SessionData {
   mode: SessionMode;
   exitedAtSec?: number;
   sessionSerial: string;
+  reflection?: string;
 }
 
 const MONO = "'IBM Plex Mono', monospace";
+const SERIF = "'IBM Plex Serif', serif";
 const W = 1200;
-const H = 675;
+// The fixed layout (header, stats, timeline) is always laid out against this
+// height. A reflection appends extra canvas height below it rather than
+// disturbing any of that positioning.
+const BASE_H = 675;
+
+// Word-wrap for canvas text — ctx.font must already be set to the font being measured.
+function wrapText(ctx: CanvasRenderingContext2D, text: string, maxWidth: number): string[] {
+  const words = text.split(/\s+/).filter(Boolean);
+  const lines: string[] = [];
+  let cur = "";
+  for (const word of words) {
+    const test = cur ? `${cur} ${word}` : word;
+    if (cur && ctx.measureText(test).width > maxWidth) {
+      lines.push(cur);
+      cur = word;
+    } else {
+      cur = test;
+    }
+  }
+  if (cur) lines.push(cur);
+  return lines;
+}
+
+// Gap from the timeline's "0:00 / total" baseline to the divider, divider to
+// the "WHAT STAYED" label baseline, and last text line to the card's inner
+// bottom edge. Shared by the height calculation and the draw pass so the two
+// can never drift apart and clip the text.
+const REFL_GAP = 44;
+const REFL_LABEL_OFFSET = 34;
+const REFL_BOTTOM_PAD = 40;
+
+interface ReflectionBlock {
+  lines: string[];
+  font: string;
+  lineHeight: number;
+  centered: boolean;
+  blockHeight: number;
+}
+
+function layoutReflection(measureCtx: CanvasRenderingContext2D, reflection: string): ReflectionBlock {
+  const short = reflection.length <= 30;
+  const font = short
+    ? `italic 500 34px ${SERIF}`
+    : reflection.length <= 140
+      ? `italic 500 20px ${SERIF}`
+      : `italic 500 16px ${SERIF}`;
+  measureCtx.font = font;
+  const maxWidth = short ? W - 200 : W - 112;
+  const lines = wrapText(measureCtx, reflection, maxWidth);
+  const lineHeight = short ? 46 : reflection.length <= 140 ? 30 : 25;
+  return {
+    lines,
+    font,
+    lineHeight,
+    centered: short,
+    blockHeight: REFL_GAP + REFL_LABEL_OFFSET + lines.length * lineHeight + REFL_BOTTOM_PAD + 24.5,
+  };
+}
 // A fixed alarm red, independent of the track's accent color — signals
 // "terminated" the same way across every track rather than competing with it.
 const EXIT_COLOR = "#ff4d4d";
@@ -28,6 +87,19 @@ export async function renderReportCard(
   await document.fonts.load(`600 40px ${MONO}`);
   await document.fonts.load(`22px ${MONO}`);
   await document.fonts.load(`13px ${MONO}`);
+
+  const reflection = data.reflection?.trim() || "";
+  let reflectionBlock: ReflectionBlock | null = null;
+  let H = BASE_H;
+  if (reflection) {
+    await document.fonts.load(`italic 500 34px ${SERIF}`);
+    await document.fonts.load(`italic 500 20px ${SERIF}`);
+    await document.fonts.load(`italic 500 16px ${SERIF}`);
+    const measureCtx = document.createElement("canvas").getContext("2d")!;
+    reflectionBlock = layoutReflection(measureCtx, reflection);
+    // BASE_H - 76 is where the fixed layout's "0:00 / total" baseline sits.
+    H = BASE_H - 76 + reflectionBlock.blockHeight;
+  }
 
   const scale = Math.max(2, window.devicePixelRatio || 1);
   canvas.width = W * scale;
@@ -94,7 +166,7 @@ export async function renderReportCard(
   }
 
   const tlX = 56;
-  const tlY = H - 100;
+  const tlY = BASE_H - 100;
   const tlW = W - 112;
 
   const showTimeline = data.mode !== "honor";
@@ -180,6 +252,33 @@ export async function renderReportCard(
   ctx.fillText("0:00", tlX, tlY + 24);
   const totalStr = fmt(data.durationSec);
   ctx.fillText(totalStr, tlX + tlW - ctx.measureText(totalStr).width, tlY + 24);
+
+  if (reflectionBlock) {
+    const dividerY = tlY + 24 + REFL_GAP;
+    ctx.strokeStyle = "#1c1c1c";
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(56, dividerY);
+    ctx.lineTo(W - 56, dividerY);
+    ctx.stroke();
+
+    ctx.fillStyle = "#6b6b64";
+    ctx.font = `13px ${MONO}`;
+    ctx.fillText("WHAT STAYED", 56, dividerY + REFL_LABEL_OFFSET);
+
+    ctx.fillStyle = "#e8e8e0";
+    ctx.font = reflectionBlock.font;
+    let ly = dividerY + REFL_LABEL_OFFSET + reflectionBlock.lineHeight;
+    for (const line of reflectionBlock.lines) {
+      if (reflectionBlock.centered) {
+        const lw = ctx.measureText(line).width;
+        ctx.fillText(line, (W - lw) / 2, ly);
+      } else {
+        ctx.fillText(line, 56, ly);
+      }
+      ly += reflectionBlock.lineHeight;
+    }
+  }
 }
 
 function clamp(value: number, min: number, max: number): number {

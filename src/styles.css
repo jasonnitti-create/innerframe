@@ -286,7 +286,46 @@ body {
 
 .report-actions {
   display: flex;
+  flex-wrap: wrap;
   gap: 12px;
+}
+
+.reflect-field {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  width: 100%;
+}
+
+.reflect-prompt {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.6;
+  color: var(--ink-dim);
+}
+
+.reflect-input {
+  width: 100%;
+  resize: vertical;
+  background: transparent;
+  border: 1px solid var(--line);
+  color: var(--ink);
+  font-family: "IBM Plex Serif", serif;
+  font-style: italic;
+  font-size: 16px;
+  line-height: 1.6;
+  padding: 12px 14px;
+  transition: border-color 120ms ease;
+}
+
+.reflect-input::placeholder {
+  color: var(--ink-dim);
+  font-style: italic;
+}
+
+.reflect-input:focus-visible {
+  outline: none;
+  border-color: var(--accent);
 }
 
 .sr-only {

@@ -439,13 +439,27 @@ async function main(): Promise<void> {
     const canvas = document.createElement("canvas");
     wrap.appendChild(canvas);
 
+    const reflectField = document.createElement("div");
+    reflectField.className = "reflect-field";
+    reflectField.innerHTML = `
+      <p class="reflect-prompt">The signal's gone quiet. What stayed behind your eyes? Write down a fragment — an image, a thought — whatever the track left in the dark.</p>
+      <textarea class="reflect-input" maxlength="320" rows="2" aria-label="Your reflection"></textarea>
+    `;
+    wrap.appendChild(reflectField);
+    const reflectInput = reflectField.querySelector(".reflect-input") as HTMLTextAreaElement;
+
     const actions = document.createElement("div");
     actions.className = "report-actions";
 
     const downloadBtn = document.createElement("button");
     downloadBtn.className = "term-btn";
-    downloadBtn.textContent = "Download";
+    downloadBtn.textContent = "Download Card";
     actions.appendChild(downloadBtn);
+
+    const downloadSongBtn = document.createElement("button");
+    downloadSongBtn.className = "term-btn";
+    downloadSongBtn.textContent = "Download Song";
+    actions.appendChild(downloadSongBtn);
 
     let shareBtn: HTMLButtonElement | null = null;
     if ("share" in navigator) {
@@ -465,7 +479,24 @@ async function main(): Promise<void> {
 
     await renderReportCard(canvas, data);
 
+    // Live preview as they type, lightly debounced. The download/share
+    // handlers re-render with the current value regardless, so what gets
+    // exported is never stale even mid-debounce.
+    let debounceHandle = 0;
+    reflectInput.addEventListener("input", () => {
+      window.clearTimeout(debounceHandle);
+      debounceHandle = window.setTimeout(() => {
+        void renderReportCard(canvas, { ...data, reflection: currentReflection() });
+      }, 400);
+    });
+
+    function currentReflection(): string {
+      // Strip line breaks so nobody can game the card's height with blank lines.
+      return reflectInput.value.replace(/\s*\n\s*/g, " ").trim();
+    }
+
     downloadBtn.addEventListener("click", async () => {
+      await renderReportCard(canvas, { ...data, reflection: currentReflection() });
       const blob = await exportPNG(canvas);
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
@@ -475,7 +506,15 @@ async function main(): Promise<void> {
       URL.revokeObjectURL(url);
     });
 
+    downloadSongBtn.addEventListener("click", () => {
+      const a = document.createElement("a");
+      a.href = `${import.meta.env.BASE_URL}${track.audioSrc.replace(/^\.\//, "")}`;
+      a.download = `${track.title.toLowerCase().replace(/\s+/g, "-")}.mp3`;
+      a.click();
+    });
+
     shareBtn?.addEventListener("click", async () => {
+      await renderReportCard(canvas, { ...data, reflection: currentReflection() });
       const blob = await exportPNG(canvas);
       const file = new File([blob], "innerframe-session.png", { type: "image/png" });
       try {
