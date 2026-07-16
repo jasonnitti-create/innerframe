@@ -319,8 +319,7 @@ export function showLanding(root: HTMLElement): Promise<void> {
       lockIn();
     });
 
-    // --- per-frame: decay, letter drift, descent zoom, ring, cue, scene tune ---
-    const phases = chars.map(() => Math.random() * Math.PI * 2);
+    // --- per-frame: decay, letter tracking, ring, cue, scene tune ---
     const frame = (): void => {
       const now = performance.now();
 
@@ -330,21 +329,13 @@ export function showLanding(root: HTMLElement): Promise<void> {
 
       scene.setTune(progress);
 
-      const t = now / 1000;
-      const amp = 0.4 + progress * 3.4;
-      for (let i = 0; i < chars.length; i++) {
-        const x = Math.sin(t * 1.7 + phases[i]) * amp * 0.4;
-        const y = Math.cos(t * 1.3 + phases[i] * 1.7) * amp;
-        chars[i].style.transform = `translate(${x.toFixed(2)}px, ${y.toFixed(2)}px)`;
-      }
-
-      // Descent: the mark grows toward the viewer as though closing the
-      // distance to it; the tagline recedes faster, like it's further back
-      // and left behind first.
-      const zoom = 1 + progress * progress * 2.2;
-      wordmark.style.transform = `scale(${zoom.toFixed(3)}) translateX(${dropOffset}px)`;
+      // Tuning in: the mark holds its size but tracks wider — letters
+      // spreading outward — while the ring (below) contracts inward. Two
+      // opposing motions instead of one thing simply growing.
+      const tracking = 0.09 + progress * 0.35;
+      wordmark.style.letterSpacing = `${tracking.toFixed(3)}em`;
+      wordmark.style.transform = `translateX(${dropOffset}px)`;
       tagline.style.opacity = Math.max(0, 1 - progress * 1.6).toFixed(3);
-      tagline.style.transform = `scale(${(1 + progress * 0.5).toFixed(3)})`;
 
       const ringScale = 1.15 - progress * 0.81;
       const ringOpacity = 0.1 + progress * 0.45;

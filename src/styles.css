@@ -328,6 +328,7 @@ body {
   align-items: center;
   text-align: center;
   padding: 0 6vw;
+  overflow: hidden;
 }
 
 .tune-ring {
