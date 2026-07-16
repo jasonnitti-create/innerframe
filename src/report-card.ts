@@ -163,7 +163,7 @@ export async function renderReportCard(
         : "SIGNAL TIMELINE";
     ctx.fillStyle = data.mode !== "exited" && data.peeks.length === 0 ? data.accent : "#6b6b64";
     ctx.font = `13px ${MONO}`;
-    ctx.fillText(caption, tlX, tlY - 40);
+    ctx.fillText(caption, tlX, tlY - 58);
   }
 
   ctx.strokeStyle = "#2a2a26";
