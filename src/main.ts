@@ -442,7 +442,7 @@ async function main(): Promise<void> {
     const reflectField = document.createElement("div");
     reflectField.className = "reflect-field";
     reflectField.innerHTML = `
-      <p class="reflect-prompt">The signal's gone quiet. What stayed behind your eyes? Write down a fragment — an image, a thought — whatever the track left in the dark.</p>
+      <p class="reflect-prompt">The signal's gone quiet. Tell me what stayed behind your eyes — an image, a thought, whatever the track left in the dark.</p>
       <textarea class="reflect-input" maxlength="320" rows="2" aria-label="Your reflection"></textarea>
     `;
     wrap.appendChild(reflectField);
