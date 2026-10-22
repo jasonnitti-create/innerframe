@@ -1,8 +1,9 @@
 import "./styles.css";
 import { Terminal } from "./terminal";
 import { FaceTracker, type EyeState } from "./face-tracker";
-import { AudioEngine } from "./audio-engine";
+import { AudioEngine, claimPlaybackAudio } from "./audio-engine";
 import { Beeper } from "./beeper";
+import { keepAwake } from "./keep-awake";
 import { showLanding } from "./landing";
 import { createPhospheneScene, type PhospheneSceneHandle } from "./phosphene-scene";
 import { uiSound } from "./ui-sound";
@@ -17,6 +18,9 @@ interface Track {
 }
 
 const REDUCED_MOTION = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+// Phones and tablets. Nobody walks past a handheld screen, so the void smoke
+// would only spend GPU the face tracker needs.
+const TOUCH_DEVICE = window.matchMedia("(pointer: coarse)").matches;
 
 function sleep(ms: number): Promise<void> {
   return new Promise((r) => setTimeout(r, ms));
@@ -116,6 +120,10 @@ async function main(): Promise<void> {
   await term.type("The feed never leaves your browser — I'm only reading whether your eyes are open or shut, frame by frame, and then forgetting.", "line dim");
   await term.button("Allow camera");
   beeper.unlock();
+  // From here on the experience is eyes-closed and audio-led (calibration beeps,
+  // then the song), so claim playback audio and keep the screen from locking.
+  claimPlaybackAudio();
+  keepAwake.start();
 
   term.setStatus("requesting camera…");
   let cameraGranted = false;
@@ -229,6 +237,7 @@ async function main(): Promise<void> {
   });
 
   if (bailedBeforeStart) {
+    keepAwake.stop();
     tracker.stopCamera();
     monitorEl.hidden = true;
     term.clear();
@@ -416,6 +425,7 @@ async function main(): Promise<void> {
 
   function enterDark(): void {
     voidEl.classList.add("on");
+    if (TOUCH_DEVICE) return; // flat black void only
     if (!voidSmoke) voidSmoke = createPhospheneScene(voidSmokeCanvas);
     voidSmokeCanvas.classList.add("on");
   }
@@ -432,6 +442,7 @@ async function main(): Promise<void> {
   }
 
   async function showReport(data: SessionData): Promise<void> {
+    keepAwake.stop();
     term.clear();
     term.widen();
     const wrap = document.createElement("div");

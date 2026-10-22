@@ -43,16 +43,25 @@ export class FaceTracker {
     const fileset = await FilesetResolver.forVisionTasks(
       `${import.meta.env.BASE_URL}wasm`,
     );
-    this.landmarker = await FaceLandmarker.createFromOptions(fileset, {
-      baseOptions: {
-        modelAssetPath: `${import.meta.env.BASE_URL}models/face_landmarker.task`,
-        delegate: "GPU",
-      },
-      runningMode: "VIDEO",
-      numFaces: 1,
-      outputFaceBlendshapes: true,
-      outputFacialTransformationMatrixes: false,
-    });
+    const create = (delegate: "GPU" | "CPU") =>
+      FaceLandmarker.createFromOptions(fileset, {
+        baseOptions: {
+          modelAssetPath: `${import.meta.env.BASE_URL}models/face_landmarker.task`,
+          delegate,
+        },
+        runningMode: "VIDEO",
+        numFaces: 1,
+        outputFaceBlendshapes: true,
+        outputFacialTransformationMatrixes: false,
+      });
+    // The GPU delegate is faster but fails to initialize on some phone
+    // browsers. CPU is slower but still fast enough to read a blink, which
+    // beats dropping the person into honor mode.
+    try {
+      this.landmarker = await create("GPU");
+    } catch {
+      this.landmarker = await create("CPU");
+    }
   }
 
   async requestCamera(): Promise<void> {

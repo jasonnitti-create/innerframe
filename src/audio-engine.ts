@@ -1,5 +1,17 @@
 const FADE_MS = 110;
 
+/**
+ * iOS treats Web Audio as "ambient" by default, so the ring/silent switch
+ * mutes it — the song would play in total silence for anyone on silent.
+ * Declaring the page as playback (Safari 17+) makes it ignore the switch.
+ * Called once the session proper begins, not on the landing, so the landing's
+ * UI ticks stay ambient and don't interrupt whatever else the person is playing.
+ */
+export function claimPlaybackAudio(): void {
+  const session = (navigator as Navigator & { audioSession?: { type: string } }).audioSession;
+  if (session) session.type = "playback";
+}
+
 export class AudioEngine {
   readonly element: HTMLAudioElement;
   private ctx: AudioContext | null = null;
