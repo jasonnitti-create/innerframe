@@ -127,16 +127,19 @@ async function main(): Promise<void> {
 
   term.setStatus("requesting camera…");
   let cameraGranted = false;
+  let cameraError: unknown = null;
   try {
     await tracker.requestCamera();
     cameraGranted = true;
-  } catch {
+  } catch (e) {
+    cameraError = e;
     cameraGranted = false;
   }
 
   if (!cameraGranted) {
     term.setStatus("honor system");
     term.clear();
+    if (DEBUG) showDebugError("camera", cameraError);
     await term.type("No camera. Fine.");
     await term.type("We'll run this on the honor system. Close your eyes when the music starts — I'm trusting you.", "line dim");
     await term.button("Play");
@@ -151,10 +154,11 @@ async function main(): Promise<void> {
 
   try {
     await tracker.init();
-  } catch {
+  } catch (e) {
     tracker.stopCamera();
     monitorEl.hidden = true;
     term.setStatus("honor system");
+    if (DEBUG) showDebugError("tracker", e);
     await term.type("Couldn't load the tracker. Let's run this on the honor system instead.", "line dim");
     await term.button("Play");
     await runHonorMode();
@@ -421,6 +425,18 @@ async function main(): Promise<void> {
       `open<${openThreshold.toFixed(2)}  closed>${closedThreshold.toFixed(2)}  ` +
       `face:${state.faceDetected ? "y" : "n"}  ` +
       `state:${state.closed ? "CLOSED" : "OPEN"}`;
+  }
+
+  // ?debug only: print why the camera or tracker failed, plus enough about the
+  // browser to spot an in-app webview or an insecure context, so a failure on
+  // someone's phone can be read off the screen.
+  function showDebugError(stage: string, e: unknown): void {
+    const err = e instanceof Error ? `${e.name}: ${e.message}` : String(e);
+    term.line(`[debug] ${stage} failed — ${err}`, "line dim");
+    term.line(
+      `[debug] secure:${window.isSecureContext} mediaDevices:${"mediaDevices" in navigator} ua:${navigator.userAgent}`,
+      "line dim",
+    );
   }
 
   function enterDark(): void {
